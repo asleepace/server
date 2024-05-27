@@ -1,0 +1,75 @@
+use std::{
+    io::{BufRead, BufReader},
+    net::TcpStream,
+};
+
+use crate::core::http::http_response::HttpResponse;
+
+const ASCII_ETX: u8 = 0x03;
+const CRLF: &str = "\r\n";
+
+pub struct HttpRequest {
+    pub response: HttpResponse,
+    data: Vec<String>,
+}
+
+impl HttpRequest {
+    pub fn new() -> Self {
+        HttpRequest {
+            data: Vec::new(),
+            response: HttpResponse::new(),
+        }
+    }
+
+    pub fn info(&self) {
+        println!("[http_request] info:\r\n{:?}", self.data);
+    }
+
+    pub fn set_data(&mut self, data: Vec<String>) {
+        self.data = data;
+    }
+
+    pub fn from(tcp_stream: &TcpStream) -> Self {
+        let data = match read_stream_data(tcp_stream) {
+            Ok(data) => data,
+            Err(_) => {
+                eprintln!("[http_request] error: failed to read stream data");
+                return HttpRequest::new();
+            }
+        };
+
+        let mut request = HttpRequest::new();
+        request.set_data(data);
+        request
+    }
+
+    pub fn url(&self) -> &str {
+        let data = self.data.first().unwrap();
+        data.split_whitespace().nth(1).unwrap()
+    }
+}
+
+fn read_stream_data(tcp_stream: &TcpStream) -> Result<Vec<String>, ()> {
+    let mut reader = BufReader::new(tcp_stream);
+    let mut data = Vec::new();
+    loop {
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(bytes) => {
+                if line == CRLF {
+                    break;
+                } else if bytes == 0 {
+                    break;
+                } else {
+                    data.push(line);
+                }
+            }
+            Err(error) => {
+                eprintln!("[http_request] error: {:?}", error);
+                return Err(());
+            }
+        }
+    }
+
+    Ok(data)
+}

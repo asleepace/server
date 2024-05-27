@@ -3,9 +3,18 @@ pub struct Config {
     pub port: u16,
 }
 
-//  IMPLEMENTATION: Write additional logic here for reading config
-//  settings from a file or environment variables.
+/**
+    Configuration for the server.
+
+*/
 impl Config {
+    pub fn new(host: &str, port: u16) -> Self {
+        Config {
+            host: host.to_string(),
+            port,
+        }
+    }
+
     pub fn address(&self) -> String {
         format!("{}:{}", self.host, self.port)
     }
@@ -14,16 +23,10 @@ impl Config {
         println!("[config] host: {}", self.host);
         println!("[config] port: {}", self.port);
     }
-}
 
-//  CONFIG: All server configuration settings are stored here.
-//  This makes it easy to change settings without having to
-//
-pub fn server() -> Config {
-    let host = "localhost";
-    let port = 8080;
-    Config {
-        host: host.to_owned(),
-        port: port,
+    pub fn public(&self, path: &str) -> String {
+        let asset_path = format!("./public/{}", path);
+        println!("[confi] public: {}", asset_path);
+        asset_path
     }
 }

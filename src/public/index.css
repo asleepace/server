@@ -1,0 +1,16 @@
+:root {
+    --text-color: rgba(255, 255, 255, 0.96);
+    --tint-color: black;
+    --back-color: beige;
+}
+
+/* Display-P3 color, when supported. */
+@supports (color: color(display-p3 1 1 1)) {
+    :root {
+        --bright-green: color(display-p3 0 1 0);
+    }
+}
+
+html {
+    background-color: color(var(--background));
+}

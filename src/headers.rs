@@ -4,6 +4,7 @@ pub struct Headers {
     headers: HashMap<String, String>,
 }
 
+/** @ignore */
 pub enum ContentType {
     HTML,
     JSON,

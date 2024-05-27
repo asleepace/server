@@ -76,33 +76,58 @@ impl Server {
         println!("[server] routes: {:?}", self.routes.keys());
         println!("[  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  ]");
         let path = url.as_str();
-        let file_path = format!(
-            "./src/public/{}",
-            path.trim_matches(|c| c == '/' || c == '.')
-        )
-        .to_string();
+        let file_path = format!("./src/public/{}", path.trim_matches('/')).to_string();
         println!("file path: {}", file_path);
 
         match self.routes.get(path) {
             Some(handler) => handler(ctx.borrow_mut()),
-            None => match std::fs::read_to_string(file_path) {
-                Ok(content) => {
-                    println!("[server] serving file: {}", path);
-                    ctx.response.content_type(ContentType::HTML);
-                    ctx.response.body(content);
+            None => {
+                eprintln!("[server] route not found: {}", path);
+                let sent_asset = ctx.response.file(path);
+                if sent_asset.is_ok() {
                     ctx.response.status(200);
                     let _ = ctx.response.send();
                 }
-                Err(_) => {
-                    println!("[server] file not found: {}", url);
+
+                if sent_asset.is_err() {
+                    eprintln!("[server] file not found: {:?}", sent_asset.err());
                     ctx.response.content_type(ContentType::HTML);
                     ctx.response.file("./src/public/404.html");
                     ctx.response.status(404);
                     let _ = ctx.response.send();
                 }
-            },
+            }
         }
     }
+
+    //     match self.routes.get(path) {
+    //         Some(handler) => handler(ctx.borrow_mut()),
+    //         None => match std::fs::read_to_string(file_path) {
+    //             Ok(content) => {
+    //                 println!("[server] serving file: {}", path);
+    //                 if path.ends_with(".css") {
+    //                     ctx.response.content_type(ContentType::CSS);
+    //                 } else if path.ends_with(".png") {
+    //                     ctx.response.content_type(ContentType::PNG);
+    //                 } else if path.ends_with(".json") {
+    //                     ctx.response.content_type(ContentType::JSON);
+    //                 } else {
+    //                     ctx.response.content_type(ContentType::HTML);
+    //                 }
+    //                 ctx.response.body(content);
+    //                 ctx.response.status(200);
+    //                 let _ = ctx.response.send();
+    //             }
+    //             Err(err) => {
+    //                 println!("[server] file not found: {:?}", err);
+    //                 ctx.response.content_type(ContentType::HTML);
+    //                 ctx.response.file("./src/public/404.html");
+    //                 ctx.response.status(404);
+    //                 let _ = ctx.response.send();
+    //             }
+    //         },
+    //     }
+    // }
 
     fn catch_all(&self, stream: &TcpStream) {
         // let non_blocking = stream.set_nonblocking(true);

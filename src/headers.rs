@@ -5,10 +5,14 @@ pub struct Headers {
 }
 
 /** @ignore */
+
+#[derive(Debug)]
 pub enum ContentType {
     HTML,
     JSON,
     TEXT,
+    PNG,
+    CSS,
     From(String),
 }
 
@@ -46,6 +50,8 @@ impl Headers {
             ContentType::TEXT => "text/plain; charset=utf-8".to_string(),
             ContentType::HTML => "text/html; charset=utf-8".to_string(),
             ContentType::JSON => "application/json".to_string(),
+            ContentType::CSS => "text/css".to_string(),
+            ContentType::PNG => "image/png".to_string(),
             ContentType::From(value) => value.to_string(),
         };
         self.headers

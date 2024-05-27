@@ -1,6 +1,7 @@
 :root {
     --text-color: black;
-    --tint-color: rgba(255, 255, 255, 0.9);
+    --tint-color: rgba(94, 92, 230, 1);
+    --tint-highlight: rgba(125, 122, 255, 1);
     --background: beige;
     --background-code: hsl(120, 1%, 19.4%);
     --border-code: hsl(0, 0%, 26.7%);
@@ -12,7 +13,6 @@
     :root {
         --background: color(display-p3 0.808 0.805 0.858 / 1);
         --text-color: color(display-p3 0 0 0 / 1);
-        --tint-color: color(display-p3 1 1 1 / 0.9);
         --background-code: hsl(120, 1%, 19.4%);
         --border-code: hsl(0, 0%, 26.7%);
         --code-color: hsl(180, 6.9%, 84.5%);
@@ -88,4 +88,15 @@ code {
     color: var(--code-color);
     border-radius: 3px;
     font-size: 0.9rem;
+}
+
+a {
+    line-height: 24px;
+    color: var(--tint-color);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--tint-highlight);
+    text-decoration: underline;
 }

@@ -1,10 +1,52 @@
 <html>
     <head>
         <title>Server</title>
-        <link rel="stylesheet" type="text/css" href="style.css" />
+        <link rel="icon" type="image/x-icon" href="favicon.png" />
+        <link rel="stylesheet" type="text/css" href="index.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            name="description"
+            content="A simple server that dynamically matches routes."
+        />
+        <meta name="keywords" content="server, rust, web, http, routes" />
+        <meta name="author" content="Colin Teahan" />
+        <meta name="robots" content="index, follow" />
+        <meta name="revisit-after" content="7 days" />
+        <meta name="language" content="English" />
+        <meta name="generator" content="Visual Studio Code" />
+        <meta name="distribution" content="global" />
+        <meta name="rating" content="general" />
+        <meta name="theme-color" content="#1d1d1d" />
     </head>
     <body>
-        <h1>Welcome to my first web page!</h1>
-        <p>This is a paragraph of text.</p>
+        <article>
+            <h1>Welcome!</h1>
+            <p>
+                To get started with the server all you need to do is create an
+                instance and handle the routes via pattern matching.
+            </p>
+            <pre>
+            <code>
+let server = Server::new();
+
+server.route("/", |sr| {
+    sr.file("index.html")
+});
+
+server.start();</code>
+            </pre>
+            <p>
+                Along with this you can handle any number of routes, errors and
+                much much more!
+            </p>
+            <ul>
+                <li>
+                    <a
+                        href="https://webkit.org/blog/10042/wide-gamut-color-in-css-with-display-p3/"
+                        >Wide Gamut Color in CSS with Display-P3</a
+                    >
+                </li>
+            </ul>
+        </article>
     </body>
 </html>

@@ -65,7 +65,7 @@ impl Server {
 
     fn handle_stream(&self, stream: &TcpStream) {
         let req = Request::init(stream);
-        req.info();
+        // req.info();
         let url = req.url().unwrap_or("index.html".to_string());
         println!("[server] handle request: {}", url);
         let res = Response::new(stream.try_clone().unwrap());
@@ -74,15 +74,33 @@ impl Server {
         let mut ctx = Context::new(cnf, req, res);
         println!("[server] locating file: {:?}", url);
         println!("[server] routes: {:?}", self.routes.keys());
+        println!("[  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  ]");
+        let path = url.as_str();
+        let file_path = format!(
+            "./src/public/{}",
+            path.trim_matches(|c| c == '/' || c == '.')
+        )
+        .to_string();
+        println!("file path: {}", file_path);
 
-        match self.routes.get(url.as_str()) {
+        match self.routes.get(path) {
             Some(handler) => handler(ctx.borrow_mut()),
-            None => {
-                println!("[server] no route found for: {}", url);
-                ctx.response.status(404);
-                ctx.response.file("./public/404.html");
-                ctx.response.send();
-            }
+            None => match std::fs::read_to_string(file_path) {
+                Ok(content) => {
+                    println!("[server] serving file: {}", path);
+                    ctx.response.content_type(ContentType::HTML);
+                    ctx.response.body(content);
+                    ctx.response.status(200);
+                    let _ = ctx.response.send();
+                }
+                Err(_) => {
+                    println!("[server] file not found: {}", url);
+                    ctx.response.content_type(ContentType::HTML);
+                    ctx.response.file("./src/public/404.html");
+                    ctx.response.status(404);
+                    let _ = ctx.response.send();
+                }
+            },
         }
     }
 

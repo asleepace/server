@@ -80,7 +80,7 @@ impl Request {
         println!("[Request] method: {:?}", self.method());
         println!("[Request] url: {:?}", self.url());
         for (key, value) in &self.data {
-            eprintln!("[Request] {:}: {:}", key, value);
+            println!("[Request] {:}: {:}", key, value);
         }
     }
 }

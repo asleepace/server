@@ -3,7 +3,6 @@ use std::{
     fs,
     io::{Error, Write},
     net::TcpStream,
-    option::Option,
     result::Result,
 };
 
@@ -11,14 +10,14 @@ pub struct Response {
     stream: TcpStream,
     status: u16,
     headers: Headers,
-    body: Option<String>,
+    body: String,
 }
 
 impl Response {
     pub fn new(stream: TcpStream) -> Self {
         Response {
             headers: Headers::new(),
-            body: Option::None,
+            body: String::new(),
             status: 200,
             stream,
         }
@@ -37,7 +36,8 @@ impl Response {
     }
 
     pub fn body(&mut self, body: String) {
-        self.body = Some(body);
+        self.headers.set_content_length(body.len());
+        self.body = body;
     }
 
     pub fn file(&mut self, file: &str) {
@@ -53,16 +53,21 @@ impl Response {
         Send the response to the client, consumes the stream.
     */
     pub fn send(&mut self) -> Result<(), Error> {
-        let response = match self.body {
-            Some(_) => self.response_with_body(),
-            None => self.response_empty(),
-        };
+        let body = self.body.as_str();
+        self.headers.set_content_length(body.len());
+        let mut response = self.headers.write();
+        response.push_str("\r\n");
+        response.push_str(body);
+        response.push_str("\r\n");
+
         let bytes = response.as_bytes();
-        let mut response_stream = &self.stream;
+        let mut stream = &self.stream;
         println!("\r\n{:}", response);
-        let output = response_stream.write_all(bytes);
+        let output = stream.write_all(bytes);
         println!("[response] success: {:}", output.is_ok());
-        response_stream.flush()
+        stream.flush();
+        stream.shutdown(std::net::Shutdown::Both);
+        output
     }
 
     fn response_empty(&mut self) -> String {
@@ -75,13 +80,17 @@ impl Response {
         empty_response
     }
 
-    fn response_with_body(&mut self) -> String {
-        let body = self.body.as_ref().unwrap();
-        self.headers.set_content_length(body.len());
-        let mut response = self.headers.write();
-        response.push_str("\r\n");
-        response.push_str(body);
-        response.push_str("\r\n");
-        response
-    }
+    // fn response_with_body(&mut self) -> String {
+    //     println!(
+    //         "[response] response_with_body {}",
+    //         self.body.as_ref().unwrap().len()
+    //     );
+    //     let body = self.body.as_ref().unwrap();
+    //     self.headers.set_content_length(body.len());
+    //     let mut response = self.headers.write();
+    //     response.push_str("\r\n");
+    //     response.push_str(body);
+    //     response.push_str("\r\n");
+    //     response
+    // }
 }

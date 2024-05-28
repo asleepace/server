@@ -1,38 +1,27 @@
 :root {
-    --text-color: rgba(230, 237, 243, 1);
-    --tint-color: rgba(94, 92, 230, 1);
-    --tint-highlight: rgba(125, 122, 255, 1);
-    --background: beige;
-    /* --background: rgba(13, 17, 22, 1); */
-    --background-code: hsl(120, 1%, 19.4%);
-    --border-code: hsl(0, 0%, 26.7%);
-    --code-color: hsl(180, 6.9%, 84.5%);
+    /* general */
+    --background: #faeed1;
+    --text-color: rgba(0.19, 0.19, 0.19, 1);
+    --tint-color: #607274;
+    /* code blocks */
+    --code-back-color: #1c1c1e;
+    --code-text-color: #d7d7d8;
+    --code-bord-color: #444444;
 }
 
 /* Display-P3 color, when supported. */
-@supports (color: color(display-p3 1 1 1)) {
+/* @supports (color: color(display-p3 1 1 1)) {
     :root {
-        /* light beige / off-white */
-        --background: color(display-p3 0.808 0.805 0.858 / 1);
-        /* --background: color(srgb 0.05 0.07 0.09 / 1); */
-        --text-color: color(srgb 0.9, 0.93 0.95 / 1);
-        /* --text-color: color(display-p3 0 0 0 / 1); */
-        --background-code: hsl(120, 1%, 19.4%);
-        --border-code: hsl(0, 0%, 26.7%);
-        --code-color: hsl(180, 6.9%, 84.5%);
+        --background: color(display-p3 0 0 0 / 1);
+        --text-color: color(srgb 0.97 0.97 0.97 / 1);
+        --code-back-color: color(srgb 0.19 0.2 0.19 / 1);
+        --code-text-color: color(srgb 0.84 0.84 0.85 / 1);
+        --code-bord-color: color(srgb 0.27 0.27 0.27 / 1);
     }
-}
+} */
 
 html {
-    font-family:
-        San Francisco,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        Roboto,
-        "Helvetica Neue",
-        Arial,
-        sans-serif;
+    font-family: "Iowan Old Style", "Palatino Linotype", "URW Palladio L", P052;
     background-color: var(--background);
     color: var(--text-color);
     font-size: 1.1rem;
@@ -50,11 +39,25 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 1rem;
-    padding: 8px;
+    /* padding: 1rem;
+    padding: 8px; */
     width: 100%;
     margin: 0;
     flex: 1;
+}
+
+nav {
+    border-bottom: 1px solid hsl(0, 0%, 0%);
+    background-color: var(--background);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 2rem;
+    margin: 0;
 }
 
 article {
@@ -69,7 +72,23 @@ h1 {
         serif;
     color: var(--text-color);
     line-height: 1.2;
-    font-size: 2rem;
+    font-size: 3rem;
+}
+
+h3 {
+    /* font-family:
+        San Francisco,
+        -apple-system,
+        BlinkMacSystemFont,
+        Roboto,
+        "Helvetica Neue",
+        sans-serif; */
+
+    font-size: 0.9rem;
+    font-weight: 700;
+    /* letter-spacing: -0.3px; */
+    padding: none;
+    margin: none;
 }
 
 h1,
@@ -78,10 +97,18 @@ p {
     margin-block: 1rlh;
 }
 
+p {
+    padding: 0 0.6rem;
+    line-height: 1.6;
+    font-size: 1.1em;
+    letter-spacing: -0.224px;
+}
+
 pre {
-    background-color: var(--background-code);
-    border-color: var(--border-code);
-    color: var(--code-color);
+    background-color: var(--code-back-color);
+    border-color: var(--code-bord-color);
+    color: var(--code-text-color);
+    border: 1px solid hsl(0, 0%, 90.6%);
     border-radius: 4px;
     margin-trim: block;
     text-align: left;
@@ -90,20 +117,25 @@ pre {
 
 code {
     font-family: Menlo, monospace;
-    background-color: var(--background-code);
-    border-color: var(--border-code);
-    color: var(--code-color);
-    border-radius: 3px;
+    border-radius: 2px;
     font-size: 0.9rem;
 }
 
 a {
     line-height: 24px;
     color: var(--tint-color);
-    text-decoration: none;
+    /* text-decoration: none; */
 }
 
 a:hover {
     color: var(--tint-highlight);
     text-decoration: underline;
+}
+
+ul {
+    margin: 2rem 0;
+}
+
+li {
+    padding-left: 0.6rem;
 }

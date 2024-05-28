@@ -36,8 +36,6 @@ impl Server {
        This method will block the current thread until the server.
     */
     pub fn start(&self) {
-        println!("\n[ + - + - + - + - + - + - + - + - + - + - + - + - + ]\n");
-        println!("[server] started!");
         self.config.print();
         match &self.connection {
             Some(listener) => self.accept(&listener),
@@ -65,10 +63,9 @@ impl Server {
             uri => uri,
         };
 
+        // TODO: Improve this in the fute
         let mime = get_mime_type(url);
-
-        println!("[server] url: {:}", url);
-        println!("[server] mime: {:}", mime);
+        println!("[server] url: {:} ({:})", url, mime);
 
         // Step 2: Locate the file
         let bytes = get_file(url);
@@ -81,6 +78,7 @@ impl Server {
                     .append(format!("Content-Type: {:}", mime).as_str())
                     .append_body(&mut data.to_owned());
 
+                // Step 4: Send the response
                 let mut writer = BufWriter::new(tcp_stream);
                 let did_write = writer.write_all(&mut res_data.to_owned());
                 match did_write {
@@ -88,6 +86,7 @@ impl Server {
                     Err(error) => eprintln!("[server] error: {:?}", error),
                 }
 
+                // Step 5: Close the connection
                 writer.flush().unwrap();
                 tcp_stream.shutdown(std::net::Shutdown::Both).unwrap();
             }
@@ -108,11 +107,12 @@ impl Server {
     }
 }
 
+/**
+    Get the file from the public directory.
+*/
 pub fn get_file(url: &str) -> Result<Vec<u8>, ()> {
     let path = url.trim_matches('/');
     let file_path = format!("./src/public/{}", path);
-
-    // let mut writer = BufWriter::new(&self.stream);
     return match fs::read(file_path.clone()) {
         Ok(data) => Ok(data),
         Err(_) => {

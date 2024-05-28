@@ -5,7 +5,12 @@ use std::{
 
 use crate::core::http::http_response::HttpResponse;
 
-const ASCII_ETX: u8 = 0x03;
+/**
+
+    Control line feed character denotes the end of a line in HTTP.
+    This is used to separate headers and the body of a request.
+
+*/
 const CRLF: &str = "\r\n";
 
 pub struct HttpRequest {
@@ -49,19 +54,21 @@ impl HttpRequest {
     }
 }
 
+/**
+    Converts a TcpStream into a byte vector, reads until a CRLF is found.
+    or times out after 5 seconds.
+*/
 fn read_stream_data(tcp_stream: &TcpStream) -> Result<Vec<String>, ()> {
     let mut reader = BufReader::new(tcp_stream);
-    let mut data = Vec::new();
+    let mut header = Vec::new();
     loop {
-        let mut line = String::new();
-        match reader.read_line(&mut line) {
+        let mut data = String::new();
+        match reader.read_line(&mut data) {
             Ok(bytes) => {
-                if line == CRLF {
-                    break;
-                } else if bytes == 0 {
+                if data == CRLF || bytes == 0 {
                     break;
                 } else {
-                    data.push(line);
+                    header.push(data);
                 }
             }
             Err(error) => {
@@ -71,5 +78,5 @@ fn read_stream_data(tcp_stream: &TcpStream) -> Result<Vec<String>, ()> {
         }
     }
 
-    Ok(data)
+    Ok(header)
 }

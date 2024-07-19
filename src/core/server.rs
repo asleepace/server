@@ -1,8 +1,10 @@
-use crate::core::config::config::Config;
+use crate::core::Config;
 
-use crate::core::http::http_request::HttpRequest;
-use crate::core::http::http_response::HttpResponse;
-use crate::core::utils::mime::get_mime_type;
+use crate::core::util::get_mime_type;
+use crate::core::http::{
+  HttpRequest,
+  HttpResponse,
+};
 
 use std::collections::HashMap;
 use std::fs;
@@ -54,7 +56,7 @@ impl Server {
 
     fn handle_stream(&self, tcp_stream: &TcpStream) {
         let req = HttpRequest::from(&tcp_stream);
-        let mut respone = HttpResponse::new();
+        let mut response = HttpResponse::new();
         req.info();
 
         // Step 1: Get the request URL
@@ -63,7 +65,7 @@ impl Server {
             uri => uri,
         };
 
-        // TODO: Improve this in the fute
+        // TODO: Improve this in the future.
         let mime = get_mime_type(url);
         println!("[server] url: {:} ({:})", url, mime);
 
@@ -73,7 +75,7 @@ impl Server {
         // Step 3: Send the response
         match bytes {
             Ok(data) => {
-                let res_data = respone
+                let res_data = response
                     .append(format!("Content-Length: {:}", data.len()).as_str())
                     .append(format!("Content-Type: {:}", mime).as_str())
                     .append_body(&mut data.to_owned());

@@ -1,9 +1,8 @@
+use super::http_response::HttpResponse;
 use std::{
     io::{BufRead, BufReader},
     net::TcpStream,
 };
-
-use super::http_response::HttpResponse;
 
 /**
 

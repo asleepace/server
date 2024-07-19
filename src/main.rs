@@ -28,6 +28,6 @@ fn main() {
     println!("[serveros] http://{}:{}/", host, port);
 
     let mut server = Server::new(host, port);
-    server.route("/", |_| println!("[serveros] now serving..."));
+    server.route("/", |_| println!("[serveros] serving index!"));
     server.start();
 }

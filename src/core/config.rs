@@ -26,7 +26,7 @@ impl Config {
 
     pub fn public(&self, path: &str) -> String {
         let asset_path = format!("./public/{}", path);
-        println!("[confi] public: {}", asset_path);
+        println!("[config] public: {}", asset_path);
         asset_path
     }
 

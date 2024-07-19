@@ -44,17 +44,15 @@ impl HttpResponse {
 }
 
 /**
-    Create a new HTTP response.
-
-    # Example
+    Create a new HTTP response which can be used to send data back to the client.
+    Below is an example of how to use this function:
     ```
     use http::http_response::create_http_response;
-
     let response = create_http_response();
     response.append("Content-Type: text/html");
     ```
 */
-fn create_http_response() -> HttpResponse {
+pub fn create_http_response() -> HttpResponse {
     let mut response = HttpResponse::new();
     response
         .append("Content-Type: */*")

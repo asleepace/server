@@ -1,4 +1,8 @@
+pub mod cli;
 pub mod config;
 pub mod http;
 pub mod server;
-pub mod utils;
+pub mod util;
+
+// pub use self::server::Server;
+pub use self::config::Config;

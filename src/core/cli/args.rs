@@ -37,3 +37,31 @@ pub fn process_args() -> HashMap<String, Args> {
     let arguments: HashMap<String, Args> = pairs.into_iter().collect();
     arguments
 }
+
+pub fn parse_as_num(args: &HashMap<String, Args>, token: &str) -> Option<u16> {
+    match args.get(token) {
+        Some(Args::Number(value)) => Some(*value),
+        Some(Args::Text(text)) => text.parse::<u16>().ok(),
+        Some(Args::Bool(bool)) => match bool {
+            true => Some(1),
+            false => Some(0),
+        },
+        _ => None,
+    }
+}
+
+pub fn parse_as_str(args: &HashMap<String, Args>, token: &str) -> Option<String> {
+    match args.get(token) {
+        Some(Args::Text(value)) => Some(value.to_owned()),
+        Some(Args::Number(num)) => Some(num.to_string()),
+        Some(Args::Bool(bool)) => Some(bool.to_string()),
+        _ => None,
+    }
+}
+
+pub fn is_set(args: &HashMap<String, Args>, token: &str) -> bool {
+    match args.get(token) {
+        Some(Args::Bool(true)) => true,
+        _ => false,
+    }
+}

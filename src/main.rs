@@ -1,5 +1,5 @@
 use core::cli;
-use core::cli::Args;
+use core::cli::args;
 use core::server::Server;
 
 mod core;
@@ -7,27 +7,21 @@ mod core;
 fn main() {
     let argv = cli::process_args();
 
-    println!("[serveros] arguments: {:?}", argv);
+    println!("[serveros] argv: {:?}", argv);
 
-    let port_flag = "--port".to_owned();
-    let host_flag = "--host".to_owned();
-
-    // extract port flag from arguments
-    let port = match argv.get(&port_flag) {
-        Some(Args::Number(port)) => port.to_owned(),
-        Some(Args::Text(port)) => port.parse::<u16>().unwrap_or(8080),
-        _ => 8080,
+    let port = match args::parse_as_num(&argv, "--port") {
+        Some(port) => port,
+        None => 8080,
     };
 
-    // extract host flag from arguments
-    let host = match argv.get(&host_flag) {
-        Some(Args::Text(host)) => host,
-        _ => "localhost",
+    let host = match args::parse_as_str(&argv, "--host") {
+        Some(host) => host,
+        None => "localhost".to_string(),
     };
 
     println!("[serveros] http://{}:{}/", host, port);
 
-    let mut server = Server::new(host, port);
+    let mut server = Server::new(&host, port);
     server.route("/", |_| println!("[serveros] serving index!"));
     server.start();
 }

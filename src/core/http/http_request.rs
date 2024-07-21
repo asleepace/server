@@ -175,14 +175,16 @@ impl HttpRequest {
         let file_url = self.url();
         let mut response = HttpResponse::with_static_file(&file_url)?;
         let bytes = response.prepare();
-        let mut stream = self
+        let stream = self
             .connection
             .as_ref()
-            .ok_or(Error::new(ErrorKind::NotFound, "failed to get tcp stream"))?
-            .as_ref();
-        stream.write_all(&bytes)?;
-        stream.flush()?;
-        stream.shutdown(Shutdown::Both)?;
+            .ok_or(Error::new(ErrorKind::NotFound, "failed to get tcp stream"))?;
+        {
+            let mut stream = stream.as_ref();
+            stream.write_all(&bytes)?;
+            stream.flush()?;
+            stream.shutdown(Shutdown::Both)?;
+        }
         Ok(())
     }
 

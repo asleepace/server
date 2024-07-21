@@ -53,7 +53,6 @@ impl HttpResponse {
 
     /**
         Create a new HttpResponse instance with a static file which is ready to be sent.
-
     */
     pub fn with_static_file(url: &str) -> Result<Self, Error> {
         let mut response = HttpResponse {
@@ -63,7 +62,6 @@ impl HttpResponse {
             body: None,
         };
         let (file_bytes, file_type) = HttpResponse::get_file(url)?;
-        println!("[http_response] setting body ({:})", file_type);
         response.set_body(file_bytes, file_type.as_str());
         Ok(response)
     }
@@ -96,11 +94,6 @@ impl HttpResponse {
     pub fn set_status(&mut self, status: HttpStatus) {
         self.status = status;
     }
-
-    // pub fn append(&mut self, data: &str) -> &mut Self {
-    //     self.data.push_str(with_crlf(data).as_str());
-    //     self
-    // }
 
     /**
         Prepare the response to be sent to the client. The request has 3 parts:
@@ -149,30 +142,4 @@ impl HttpResponse {
             CRLF
         )
     }
-
-    // pub fn append_body(&self, body: &mut Vec<u8>) -> Vec<u8> {
-    //     let mut response = String::new();
-    //     let http_headers = self.http_headers();
-    //     response.push_str(http_headers.as_str());
-    //     response.push_str(CRLF);
-    //     response.push_str(CRLF);
-    //     let mut response_bytes = response.into_bytes();
-    //     response_bytes.append(body);
-    //     response_bytes
-    // }
-
-    // pub fn send_body(&mut self, mime: &str, data: &Vec<u8>, tcp_stream: &mut TcpStream) {
-    //     let res_data = self
-    //         .append(format!("Content-Length: {:}", data.len()).as_str())
-    //         .append(format!("Content-Type: {:}", mime).as_str())
-    //         .append_body(&mut data.to_owned());
-
-    //     // Step 4: Send the response
-    //     let mut writer = BufWriter::new(tcp_stream);
-    //     let did_write = writer.write_all(&mut res_data.to_owned());
-    //     match did_write {
-    //         Ok(_) => println!("[server] response sent!"),
-    //         Err(error) => eprintln!("[server] error: {:?}", error),
-    //     }
-    // }
 }

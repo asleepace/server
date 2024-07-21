@@ -25,7 +25,7 @@ html {
     background-color: var(--background);
     color: var(--text-color);
     font-size: 1.1rem;
-    line-height: 1.4;
+    line-height: 1.2rem;
     overflow-x: hidden;
     min-height: 100svh;
     display: flex;
@@ -91,6 +91,12 @@ h3 {
     margin: none;
 }
 
+#site-logo {
+    color: var(--text-color);
+    text-decoration: none;
+    font-weight: 900;
+}
+
 h1,
 p {
     color: var(--text-color);
@@ -138,4 +144,54 @@ ul {
 
 li {
     padding-left: 0.6rem;
+    margin: 0.6rem 0;
+}
+
+/* horizontal flex rows */
+.row,
+.row-button-list {
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: row;
+    display: flex;
+}
+
+.row-button-list {
+    text-decoration: none;
+    column-gap: 1em;
+    row-gap: 1rem;
+}
+
+.row-button-list a {
+    display: flex;
+    flex: 1;
+    align-self: stretch;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1.8rem;
+    letter-spacing: 0.3px;
+}
+
+.row-button-list button {
+    min-height: 2rem;
+    border-radius: 2px;
+    border-width: 1px;
+    border-color: transparent;
+    background-color: var(--code-back-color);
+    color: var(--code-text-color);
+    justify-content: center;
+    align-items: center;
+    align-self: stretch;
+    display: flex;
+    flex: 1;
+    font-size: 16px;
+    letter-spacing: 0.3px;
+}
+
+.row-button-list button:hover {
+    text-underline-offset: 0.2em;
+    text-decoration: underline;
+    background-color: var(--background);
+    border-color: var(--text-color);
+    color: var(--text-color);
 }

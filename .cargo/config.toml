@@ -5,3 +5,4 @@
 [alias]
 release = "build --release"
 prod = "run --release --"
+demo = "run --"

@@ -28,7 +28,7 @@ pub struct HttpHeaders {
     pub method: HttpMethod,
     pub version: HttpVersion,
     pub uri: URI,
-    raw: HashMap<String, String>,
+    pub raw: HashMap<String, String>,
 }
 
 impl HttpHeaders {
@@ -63,6 +63,16 @@ impl HttpHeaders {
             "PATCH" => HttpMethod::PATCH,
             _ => HttpMethod::Name(method.to_uppercase()),
         }
+    }
+
+    pub fn set_content_type(&mut self, content_type: &str) {
+        self.raw
+            .insert("Content-Type".to_string(), content_type.to_string());
+    }
+
+    pub fn set_content_length(&mut self, length: usize) {
+        self.raw
+            .insert("Content-Length".to_string(), length.to_string());
     }
 
     pub fn parse_header(header: &str) -> Option<(&str, &str)> {

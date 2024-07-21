@@ -3,118 +3,96 @@ use crate::core::Config;
 use crate::core::http::{HttpRequest, HttpResponse};
 use crate::core::util::get_mime_type;
 
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, Error, ErrorKind, Result, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::Arc;
 
 pub struct Server {
     config: Config,
-    connection: Option<TcpListener>,
+    connection: TcpListener,
     routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) + 'static>>,
 }
 
+pub enum ServerError {
+    IoError(std::io::Error),
+}
+
 impl Server {
+    pub fn new(connection: TcpListener, config: Config) -> Self {
+        Server {
+            config,
+            connection,
+            routes: HashMap::new(),
+        }
+    }
+
     /**
         Create a new server instance.
     */
-    pub fn new(host: &str, port: u16) -> Self {
+    pub fn bind(host: &str, port: u16) -> Result<Self> {
         let config = Config::new(host, port);
         let domain = config.address();
-        let connection = TcpListener::bind(&domain).ok();
-        let routes = HashMap::new();
-        Server {
-            connection,
-            config,
-            routes,
-        }
+        let connection = TcpListener::bind(&domain)?;
+        let server = Server::new(connection, config);
+        Ok(server)
     }
+
+    /**
+        Get the file from the public directory.
+    */
+    // pub fn get_file(url: &str) -> Result<Vec<u8>> {
+    //     let path = url.trim_matches('/');
+    //     let file_path = format!("./src/public/{}", path);
+    //     println!("[server] file path: {}", file_path);
+    //     return match fs::read(file_path.clone()) {
+    //         Ok(data) => Ok(data),
+    //         Err(err) => {
+    //             eprintln!("[response] file not found: {}", file_path);
+    //             return Result::Err(err);
+    //         }
+    //     };
+    // }
 
     /**
        Start the server and listen for incoming connections.
        This method will block the current thread until the server.
     */
-    pub fn start(&self) {
+    pub fn start(&mut self) {
         self.config.print();
-        match &self.connection {
-            Some(listener) => self.accept(&listener),
-            None => eprintln!("[server] error: unable to bind to address"),
-        }
-    }
-
-    fn accept(&self, listener: &TcpListener) {
-        println!("[server] accepting connection {:?}", listener);
-        for stream in listener.incoming() {
+        for stream in self.connection.incoming() {
             match stream {
-                Ok(stream) => self.handle_stream(&stream),
                 Err(error) => eprintln!("[server] accept error: {}", error),
+                Ok(stream) => {
+                    self.handle_stream(Arc::new(stream));
+
+                    // if let Err(err) = self.handle_stream(&mut stream) {
+                    //     eprintln!("[server] error: {}", err);
+                    // }
+                }
             }
         }
     }
 
-    fn handle_stream(&self, tcp_stream: &TcpStream) {
+    fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
         println!("[server] handling stream: {:?}", tcp_stream);
 
-        let mut request = HttpRequest::from(&tcp_stream);
-        let mut response = HttpResponse::new();
-
+        let mut request = HttpRequest::with(tcp_stream)?;
         // request.info();
 
-        // Step 1: Extract the incoming URL
         let url = match request.url() {
             Some(uri) => uri.to_owned(),
             None => {
                 println!("[server] error: no url found");
-                return;
+                return Err(Error::new(ErrorKind::InvalidInput, "no url found"));
             }
         };
 
-        // Step 2. Check if a handler is registered for the route.
         match self.routes.get(&url) {
-            Some(handler) => handler(&mut request),
-            None => println!("[server] no route found for: {:?}", url),
-        };
-
-        // Step 3. Check if the request is closed (caused by a handler)
-        if request.is_closed() {
-            return;
-        }
-
-        // Step 4. Serve local files
-        if request.is_file_request() {
-            println!("[server] is file request!");
-        }
-
-        // TODO: Improve this in the future.
-        let mime = get_mime_type(&url);
-        println!("[server] url: {:} ({:})", url, mime);
-
-        // Step 2: Locate the file
-        let bytes = get_file(&url);
-
-        // Step 3: Send the response
-        match bytes {
-            Ok(data) => {
-                let res_data = response
-                    .append(format!("Content-Length: {:}", data.len()).as_str())
-                    .append(format!("Content-Type: {:}", mime).as_str())
-                    .append_body(&mut data.to_owned());
-
-                // Step 4: Send the response
-                let mut writer = BufWriter::new(tcp_stream);
-                let did_write = writer.write_all(&mut res_data.to_owned());
-                match did_write {
-                    Ok(_) => println!("[server] response sent!"),
-                    Err(error) => eprintln!("[server] error: {:?}", error),
-                }
-
-                // Step 5: Close the connection
-                writer.flush().unwrap();
-                tcp_stream.shutdown(std::net::Shutdown::Both).unwrap();
-            }
-            Err(error) => {
-                eprintln!("[server] error: {:?}", error);
-            }
+            Some(handler) => Ok(handler(&mut request)),
+            None => request.serve_static_file(),
         }
     }
 
@@ -128,20 +106,4 @@ impl Server {
         println!("[server] dynamic route: {}", path);
         self.routes.insert(path.to_string(), Box::new(handler));
     }
-}
-
-/**
-    Get the file from the public directory.
-*/
-pub fn get_file(url: &str) -> Result<Vec<u8>, ()> {
-    let path = url.trim_matches('/');
-    let file_path = format!("./src/public/{}", path);
-    println!("[server] file path: {}", file_path);
-    return match fs::read(file_path.clone()) {
-        Ok(data) => Ok(data),
-        Err(_) => {
-            eprintln!("[response] file not found: {}", file_path);
-            return Result::Err(());
-        }
-    };
 }

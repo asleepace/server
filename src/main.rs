@@ -25,7 +25,13 @@ fn main() {
     println!("[serveros] http://{}:{}/", host, port);
 
     // Start the server.
-    let mut server = Server::new(&host, port);
+    let mut server = match Server::bind(&host, port) {
+        Ok(server) => server,
+        Err(err) => {
+            eprintln!("[serveros] failed to start server: {}", err);
+            return;
+        }
+    };
 
     // Define routes.
     server.route("/", |sr| {

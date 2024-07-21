@@ -140,14 +140,19 @@ li {
     padding-left: 0.6rem;
 }
 
+/* horizontal flex rows */
+.row,
 .row-button-list {
-    text-decoration: none;
-    display: flex;
-    flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    row-gap: 1rem;
+    flex-direction: row;
+    display: flex;
+}
+
+`.row-button-list {
+    text-decoration: none;
     column-gap: 1em;
+    row-gap: 1rem;
 }
 
 .row-button-list a {

@@ -13,7 +13,7 @@ use std::sync::Arc;
 pub struct Server {
     config: Config,
     connection: TcpListener,
-    routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) + 'static>>,
+    routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) -> Result<()> + 'static>>,
 }
 
 pub enum ServerError {
@@ -72,7 +72,7 @@ impl Server {
         };
 
         match self.routes.get(&url) {
-            Some(handler) => Ok(handler(&mut request)),
+            Some(handler) => handler(&mut request),
             None => request.serve_static_file(),
         }
     }
@@ -82,7 +82,7 @@ impl Server {
     */
     pub fn route<F>(&mut self, path: &str, handler: F)
     where
-        F: Fn(&mut HttpRequest) + 'static,
+        F: Fn(&mut HttpRequest) -> Result<()> + 'static,
     {
         println!("[server] dynamic route: {}", path);
         self.routes.insert(path.to_string(), Box::new(handler));

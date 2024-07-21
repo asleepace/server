@@ -36,12 +36,12 @@ fn main() {
     // Define routes.
     server.route("/", |sr| {
         println!("[main] serving route: /");
-        sr.send_file("index.html");
+        sr.send_file("index.html")
     });
 
     server.route("/info", |sr| {
         println!("[main] serving route: info.html");
-        sr.send_file("info.html");
+        sr.send_file("info.html")
     });
 
     server.start();

@@ -5,7 +5,7 @@ use crate::core::util::get_mime_type;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Error, ErrorKind};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::ops::Deref;
@@ -57,7 +57,7 @@ impl HttpRequest {
         Create a new HttpRequest instance from a TcpStream. NOTE: This is the primary
         entry point for creating a new HttpRequest instance.
     */
-    pub fn with(tcp_stream: Arc<TcpStream>) -> Result<Self, Error> {
+    pub fn with(tcp_stream: Arc<TcpStream>) -> Result<Self> {
         let data_stream = match tcp_stream.try_clone() {
             Ok(stream) => stream,
             Err(error) => {
@@ -86,7 +86,7 @@ impl HttpRequest {
         Converts a TcpStream into a byte vector, reads until a CRLF is found.
         or times out after 5 seconds.
     */
-    fn read_stream_data(tcp_stream: &TcpStream) -> Result<Vec<String>, ()> {
+    fn read_stream_data(tcp_stream: &TcpStream) -> Result<Vec<String>> {
         let mut reader = BufReader::new(tcp_stream);
         let mut header = Vec::new();
         loop {
@@ -101,7 +101,7 @@ impl HttpRequest {
                 }
                 Err(error) => {
                     eprintln!("[http_request] error: {:?}", error);
-                    return Err(());
+                    return Err(error);
                 }
             }
         }
@@ -136,7 +136,7 @@ impl HttpRequest {
         return true;
     }
 
-    pub fn serve_static_file(&mut self) -> Result<(), Error> {
+    pub fn serve_static_file(&mut self) -> Result<()> {
         let file_url = self
             .url()
             .ok_or(Error::new(ErrorKind::NotFound, "failed to get url"))?;
@@ -150,41 +150,6 @@ impl HttpRequest {
         stream.write_all(&bytes)?;
         stream.flush()?;
         stream.shutdown(Shutdown::Both)?;
-        Ok(())
-    }
-
-    pub fn serve_static_file_old(&mut self) -> Result<(), Error> {
-        let static_url = match self.url() {
-            Some(url) => url,
-            None => {
-                eprintln!("[http_request] error: failed to get url!");
-                return Err(ServerError::file_not_found("failed to get url"));
-            }
-        };
-
-        let (static_file, mime_type) = HttpRequest::get_file(&static_url)?;
-        let mut response = HttpResponse::new();
-        response.set_body(static_file, &mime_type);
-        response.set_code(200);
-
-        let mut tcp_stream = match &self.connection {
-            Some(stream) => match stream.try_clone() {
-                Ok(stream) => stream,
-                Err(error) => {
-                    eprintln!(
-                        "[http_request] error: failed to clone tcp stream: {:?}",
-                        error
-                    );
-                    return Err(ServerError::error("failed to clone tcp stream"));
-                }
-            },
-            None => {
-                eprintln!("[http_request] error: failed to get tcp stream");
-                return Err(ServerError::error("failed to get tcp stream"));
-            }
-        };
-
-        response.send(&mut tcp_stream)?;
         Ok(())
     }
 
@@ -204,27 +169,33 @@ impl HttpRequest {
 
     /** response api for handlers */
 
-    pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
-        let path = url.trim_matches('/');
-        let file_path = format!("./src/public/{}", path);
-        println!("[http_request] file_path {:?}", file_path);
-        let data = fs::read(file_path)?;
-        let mime = get_mime_type(url);
-        Ok((data, mime))
-    }
+    // pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
+    //     let path = url.trim_matches('/');
+    //     let file_path = format!("./src/public/{}", path);
+    //     println!("[http_request] file_path {:?}", file_path);
+    //     let data = fs::read(file_path)?;
+    //     let mime = get_mime_type(url);
+    //     Ok((data, mime))
+    // }
 
-    pub fn send_file(&mut self, url: &str) -> Result<(), Error> {
+    /**
+        Loads a file at the given url and sends it to the client, note that this function
+        is generally called by the handler functions.
+    */
+    pub fn send_file(&mut self, url: &str) -> Result<()> {
         let mut response = HttpResponse::with_static_file(url.to_string())?;
-        let bytes = response.prepare();
-
-        let mut stream = self
+        let stream_ref = self
             .connection
-            .as_deref()
+            .as_ref()
             .ok_or(ServerError::error("failed to get tcp stream"))?;
-
-        stream.write_all(&bytes)?;
-        stream.flush()?;
-        stream.shutdown(Shutdown::Both)?;
+        {
+            // hnadle this in a block to drop the mutable borrow
+            let mut stream = stream_ref.as_ref();
+            let bytes = response.prepare();
+            stream.write_all(&bytes)?;
+            stream.flush()?;
+            stream.shutdown(Shutdown::Both)?;
+        }
         Ok(())
     }
 

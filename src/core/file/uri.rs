@@ -2,9 +2,9 @@ use std::fs;
 
 #[derive(Clone, Debug)]
 pub struct URI {
-    path: String,
-    meta: Option<fs::Metadata>,
-    exists: bool,
+    pub path: String,
+    pub meta: Option<fs::Metadata>,
+    pub exists: bool,
 }
 
 const FILTERS: [&str; 3] = ["..", "~", "."];
@@ -72,6 +72,13 @@ impl URI {
     */
     pub fn path(&self) -> &str {
         self.path.as_str()
+    }
+
+    pub fn is_file(&self) -> bool {
+        match self.meta_data() {
+            Some(data) => data.is_file(),
+            None => false,
+        }
     }
 
     /**

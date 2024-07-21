@@ -60,9 +60,8 @@ impl Server {
 
         // request.info();
 
-        let request_url = request.url();
-
-        let url = match request_url {
+        // Step 1: Extract the incoming URL
+        let url = match request.url() {
             Some(uri) => uri.to_owned(),
             None => {
                 println!("[server] error: no url found");
@@ -70,20 +69,20 @@ impl Server {
             }
         };
 
-        let is_handled = match self.routes.get(&url) {
-            Some(handler) => {
-                handler(&mut request);
-                true
-            }
-            None => {
-                println!("[server] no route found for: {:?}", url);
-                false
-            }
+        // Step 2. Check if a handler is registered for the route.
+        match self.routes.get(&url) {
+            Some(handler) => handler(&mut request),
+            None => println!("[server] no route found for: {:?}", url),
         };
 
-        if is_handled {
-            println!("[server] route handled!");
+        // Step 3. Check if the request is closed (caused by a handler)
+        if request.is_closed() {
             return;
+        }
+
+        // Step 4. Serve local files
+        if request.is_file_request() {
+            println!("[server] is file request!");
         }
 
         // TODO: Improve this in the future.

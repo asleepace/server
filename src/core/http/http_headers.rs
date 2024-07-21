@@ -9,25 +9,25 @@ pub enum HttpVersion {
     Name(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum HttpMethod {
-    Get,
-    Post,
-    Put,
-    Delete,
-    Head,
-    Options,
-    Trace,
-    Connect,
-    Patch,
+    GET,
+    POST,
+    PUT,
+    DELETE,
+    HEAD,
+    OPTIONS,
+    TRACE,
+    CONNECT,
+    PATCH,
     Name(String),
 }
 
 #[derive(Clone, Debug)]
 pub struct HttpHeaders {
-    method: HttpMethod,
-    version: HttpVersion,
-    uri: URI,
+    pub method: HttpMethod,
+    pub version: HttpVersion,
+    pub uri: URI,
     raw: HashMap<String, String>,
 }
 
@@ -51,17 +51,17 @@ impl HttpHeaders {
     }
 
     pub fn method_from_string(method: &str) -> HttpMethod {
-        match method {
-            "GET" => HttpMethod::Get,
-            "POST" => HttpMethod::Post,
-            "PUT" => HttpMethod::Put,
-            "DELETE" => HttpMethod::Delete,
-            "HEAD" => HttpMethod::Head,
-            "OPTIONS" => HttpMethod::Options,
-            "TRACE" => HttpMethod::Trace,
-            "CONNECT" => HttpMethod::Connect,
-            "PATCH" => HttpMethod::Patch,
-            _ => HttpMethod::Name(method.to_string()),
+        match method.to_uppercase().as_str() {
+            "GET" => HttpMethod::GET,
+            "POST" => HttpMethod::POST,
+            "PUT" => HttpMethod::PUT,
+            "DELETE" => HttpMethod::DELETE,
+            "HEAD" => HttpMethod::HEAD,
+            "OPTIONS" => HttpMethod::OPTIONS,
+            "TRACE" => HttpMethod::TRACE,
+            "CONNECT" => HttpMethod::CONNECT,
+            "PATCH" => HttpMethod::PATCH,
+            _ => HttpMethod::Name(method.to_uppercase()),
         }
     }
 
@@ -90,7 +90,7 @@ impl HttpHeaders {
 
     pub fn new() -> Self {
         HttpHeaders {
-            method: HttpMethod::Get,
+            method: HttpMethod::GET,
             version: HttpVersion::HTTP1_1,
             uri: URI::new("/"),
             raw: HashMap::new(),
@@ -149,5 +149,13 @@ impl HttpHeaders {
             uri: http_info.2,
             raw,
         })
+    }
+
+    pub fn get(&self, key: &str) -> Option<&String> {
+        self.raw.get(key)
+    }
+
+    pub fn set(&mut self, key: &str, value: &str) {
+        self.raw.insert(key.to_string(), value.to_string());
     }
 }

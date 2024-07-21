@@ -60,6 +60,17 @@ impl<'a> HttpRequest<'a> {
         self.headers = headers;
     }
 
+    pub fn is_file_request(&self) -> bool {
+        if self.headers.method != HttpMethod::GET {
+            return false;
+        }
+
+        if self.headers.uri.is_file() == false {
+            return false;
+        }
+        return true;
+    }
+
     /**
         Create a new HttpRequest instance from a TcpStream. NOTE: This is the primary
         entry point for creating a new HttpRequest instance.
@@ -89,11 +100,6 @@ impl<'a> HttpRequest<'a> {
     }
 
     pub fn url(&self) -> Option<String> {
-        println!("[http_request] url caled: {:?}", self.data);
-        if self.data.is_empty() {
-            return None;
-        }
-
         match self.data.first() {
             Some(data) => {
                 let url = data.split_whitespace().nth(1);

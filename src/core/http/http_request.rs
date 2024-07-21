@@ -5,9 +5,10 @@ use crate::core::util::get_mime_type;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Error};
+use std::io::{BufRead, BufReader, Error, ErrorKind};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
+use std::ops::Deref;
 use std::sync::Arc;
 
 /**
@@ -60,11 +61,8 @@ impl HttpRequest {
         let data_stream = match tcp_stream.try_clone() {
             Ok(stream) => stream,
             Err(error) => {
-                eprintln!(
-                    "[http_request] error: failed to clone tcp stream: {:?}",
-                    error
-                );
-                return Err(ServerError::error("failed to clone tcp stream"));
+                println!("[http_request] invalid request: {:?}", error);
+                return Err(error);
             }
         };
 
@@ -83,14 +81,6 @@ impl HttpRequest {
         request.set_data(data);
         Ok(request)
     }
-
-    // pub fn new() -> Self {
-    //     HttpRequest {
-    //         headers: HttpHeaders::new(),
-    //         data: Vec::new(),
-    //         response: HttpResponse::new(),
-    //     }
-    // }
 
     /**
         Converts a TcpStream into a byte vector, reads until a CRLF is found.
@@ -147,19 +137,34 @@ impl HttpRequest {
     }
 
     pub fn serve_static_file(&mut self) -> Result<(), Error> {
+        let file_url = self
+            .url()
+            .ok_or(Error::new(ErrorKind::NotFound, "failed to get url"))?;
+        let mut response = HttpResponse::with_static_file(file_url)?;
+        let bytes = response.prepare();
+        let mut stream = self
+            .connection
+            .as_ref()
+            .ok_or(Error::new(ErrorKind::NotFound, "failed to get tcp stream"))?
+            .as_ref();
+        stream.write_all(&bytes)?;
+        stream.flush()?;
+        stream.shutdown(Shutdown::Both)?;
+        Ok(())
+    }
+
+    pub fn serve_static_file_old(&mut self) -> Result<(), Error> {
         let static_url = match self.url() {
             Some(url) => url,
             None => {
-                eprintln!("[http_request] error: failed to get url");
+                eprintln!("[http_request] error: failed to get url!");
                 return Err(ServerError::file_not_found("failed to get url"));
             }
         };
 
-        let static_file = HttpRequest::get_file(&static_url)?;
-        let mime = get_mime_type(&static_url);
-
+        let (static_file, mime_type) = HttpRequest::get_file(&static_url)?;
         let mut response = HttpResponse::new();
-        response.set_body(static_file, &mime);
+        response.set_body(static_file, &mime_type);
         response.set_code(200);
 
         let mut tcp_stream = match &self.connection {
@@ -199,40 +204,57 @@ impl HttpRequest {
 
     /** response api for handlers */
 
-    pub fn get_file(url: &str) -> Result<Vec<u8>, Error> {
+    pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
         let path = url.trim_matches('/');
         let file_path = format!("./src/public/{}", path);
         println!("[http_request] file_path {:?}", file_path);
-        return fs::read(file_path);
+        let data = fs::read(file_path)?;
+        let mime = get_mime_type(url);
+        Ok((data, mime))
     }
 
     pub fn send_file(&mut self, url: &str) -> Result<(), Error> {
-        let mut tcp_stream = match &self.connection {
-            Some(stream) => stream.as_ref(),
-            None => {
-                eprintln!("[http_request] error: failed to get tcp stream");
-                return Err(ServerError::error("failed to get tcp stream"));
-            }
-        };
+        let mut response = HttpResponse::with_static_file(url.to_string())?;
+        let bytes = response.prepare();
 
-        let mime = get_mime_type(url);
+        let mut stream = self
+            .connection
+            .as_deref()
+            .ok_or(ServerError::error("failed to get tcp stream"))?;
 
-        return match HttpRequest::get_file(url) {
-            Ok(data) => {
-                let response_bytes = self
-                    .response
-                    .append(format!("Content-Length: {:}", data.len()).as_str())
-                    .append(format!("Content-Type: {:}", mime).as_str())
-                    .append_body(&mut data.to_owned());
-                tcp_stream.write_all(&response_bytes)?;
-                tcp_stream.flush()?;
-                tcp_stream.shutdown(Shutdown::Both)?;
-                Ok(())
-            }
-            Err(error) => {
-                eprintln!("[server] error: {:?}", error);
-                return Err(error);
-            }
-        };
+        stream.write_all(&bytes)?;
+        stream.flush()?;
+        stream.shutdown(Shutdown::Both)?;
+        Ok(())
     }
+
+    // pub fn send_file(&mut self, url: &str) -> Result<(), Error> {
+    //     let mut tcp_stream = match &self.connection {
+    //         Some(stream) => stream.as_ref(),
+    //         None => {
+    //             eprintln!("[http_request] error: failed to get tcp stream");
+    //             return Err(ServerError::error("failed to get tcp stream"));
+    //         }
+    //     };
+
+    //     let mime = get_mime_type(url);
+
+    //     return match HttpRequest::get_file(url) {
+    //         Ok(data) => {
+    //             let response_bytes = self
+    //                 .response
+    //                 .append(format!("Content-Length: {:}", data.len()).as_str())
+    //                 .append(format!("Content-Type: {:}", mime).as_str())
+    //                 .append_body(&mut data.to_owned());
+    //             tcp_stream.write_all(&response_bytes)?;
+    //             tcp_stream.flush()?;
+    //             tcp_stream.shutdown(Shutdown::Both)?;
+    //             Ok(())
+    //         }
+    //         Err(error) => {
+    //             eprintln!("[server] error: {:?}", error);
+    //             return Err(error);
+    //         }
+    //     };
+    // }
 }

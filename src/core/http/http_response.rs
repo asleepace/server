@@ -1,7 +1,9 @@
 use crate::core::http::http_headers::HttpHeaders;
-
+use crate::core::util::get_mime_type;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::fs;
+use std::io::Error;
 use std::io::{BufRead, BufReader};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -51,6 +53,34 @@ impl HttpResponse {
             code: 200,
             body: None,
         }
+    }
+
+    /**
+        Create a new HttpResponse instance with a static file which is ready to be sent.
+
+    */
+    pub fn with_static_file(url: String) -> Result<Self, Error> {
+        let mut response = HttpResponse {
+            headers: HttpHeaders::new(),
+            version: String::from("HTTP/1.1"),
+            status: String::from("OK"),
+            data: String::new(),
+            code: 200,
+            body: None,
+        };
+        let (file_bytes, file_type) = HttpResponse::get_file(url.as_str())?;
+        response.set_body(file_bytes, file_type.as_str());
+        response.set_code(200);
+        Ok(response)
+    }
+
+    pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
+        let path = url.trim_matches('/');
+        let file_path = format!("./src/public/{}", path);
+        println!("[http_request] file_path {:?}", file_path);
+        let data = fs::read(file_path)?;
+        let mime = get_mime_type(url);
+        Ok((data, mime))
     }
 
     pub fn set_body(&mut self, body: Vec<u8>, mime: &str) {

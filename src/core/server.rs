@@ -41,22 +41,6 @@ impl Server {
     }
 
     /**
-        Get the file from the public directory.
-    */
-    // pub fn get_file(url: &str) -> Result<Vec<u8>> {
-    //     let path = url.trim_matches('/');
-    //     let file_path = format!("./src/public/{}", path);
-    //     println!("[server] file path: {}", file_path);
-    //     return match fs::read(file_path.clone()) {
-    //         Ok(data) => Ok(data),
-    //         Err(err) => {
-    //             eprintln!("[response] file not found: {}", file_path);
-    //             return Result::Err(err);
-    //         }
-    //     };
-    // }
-
-    /**
        Start the server and listen for incoming connections.
        This method will block the current thread until the server.
     */
@@ -65,13 +49,10 @@ impl Server {
         for stream in self.connection.incoming() {
             match stream {
                 Err(error) => eprintln!("[server] accept error: {}", error),
-                Ok(stream) => {
-                    self.handle_stream(Arc::new(stream));
-
-                    // if let Err(err) = self.handle_stream(&mut stream) {
-                    //     eprintln!("[server] error: {}", err);
-                    // }
-                }
+                Ok(stream) => match self.handle_stream(Arc::new(stream)) {
+                    Ok(_) => (),
+                    Err(err) => eprintln!("[server] error: {}", err),
+                },
             }
         }
     }

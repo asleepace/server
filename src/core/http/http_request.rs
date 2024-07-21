@@ -1,8 +1,10 @@
 use super::http_response::HttpResponse;
-use std::{
-    io::{BufRead, BufReader},
-    net::TcpStream,
-};
+use crate::core::util::get_mime_type;
+use std::collections::HashMap;
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::io::{BufWriter, Write};
+use std::net::{TcpListener, TcpStream};
 
 /**
 
@@ -12,21 +14,37 @@ use std::{
 */
 const CRLF: &str = "\r\n";
 
-pub struct HttpRequest {
+#[derive(Clone)]
+pub struct HttpRequest<'a> {
     pub response: HttpResponse,
+    pub tcp_stream: Option<&'a TcpStream>,
     data: Vec<String>,
 }
 
-impl HttpRequest {
+impl<'a> HttpRequest<'a> {
     pub fn new() -> Self {
         HttpRequest {
             data: Vec::new(),
+            tcp_stream: None,
             response: HttpResponse::new(),
+        }
+    }
+
+    pub fn clone(&self) -> Self {
+        println!("cloning request: {:?}", self.data);
+        HttpRequest {
+            data: self.data.clone(),
+            tcp_stream: self.tcp_stream,
+            response: self.response.clone(),
         }
     }
 
     pub fn info(&self) {
         println!("[http_request] info:\r\n{:?}", self.data);
+    }
+
+    pub fn set_tcp_stream(&mut self, tcp_stream: &'a TcpStream) {
+        self.tcp_stream = Some(tcp_stream);
     }
 
     pub fn set_data(&mut self, data: Vec<String>) {
@@ -47,9 +65,82 @@ impl HttpRequest {
         request
     }
 
-    pub fn url(&self) -> &str {
-        let data = self.data.first().unwrap();
-        data.split_whitespace().nth(1).unwrap()
+    pub fn url(&self) -> Option<String> {
+        println!("[http_request] url caled: {:?}", self.data);
+        if self.data.is_empty() {
+            return None;
+        }
+
+        match self.data.first() {
+            Some(data) => {
+                let url = data.split_whitespace().nth(1);
+                println!("[http_request] found url: {:?}", url);
+                match url {
+                    Some(url) => Some(url.to_owned()),
+                    None => None,
+                }
+            }
+            None => None,
+        }
+    }
+
+    /** response api for handlers */
+
+    pub fn get_file(url: &str) -> Result<Vec<u8>, ()> {
+        let path = url.trim_matches('/');
+        let file_path = format!("./src/public/{}", path);
+        return match fs::read(file_path.clone()) {
+            Ok(data) => Ok(data),
+            Err(_) => {
+                eprintln!("[response] file not found: {}", file_path);
+                return Result::Err(());
+            }
+        };
+    }
+
+    pub fn send_file(&mut self, url: &str) {
+        let mime = get_mime_type(url);
+
+        let response_stream = match self.tcp_stream {
+            Some(stream) => stream,
+            None => {
+                eprintln!("[server] error: failed to send response stream is closed!");
+                return;
+            }
+        };
+
+        match HttpRequest::get_file(url) {
+            Ok(data) => {
+                let res_data = self
+                    .response
+                    .append(format!("Content-Length: {:}", data.len()).as_str())
+                    .append(format!("Content-Type: {:}", mime).as_str())
+                    .append_body(&mut data.to_owned());
+
+                // Step 4: Send the response
+                let mut writer = BufWriter::new(response_stream);
+                let did_write = writer.write_all(&mut res_data.to_owned());
+                match did_write {
+                    Ok(_) => println!("[server] response sent!"),
+                    Err(error) => eprintln!("[server] error: {:?}", error),
+                }
+
+                // Step 5: Close down the writer
+                match writer.flush() {
+                    Ok(_) => println!("[server] writer flushed!"),
+                    Err(error) => eprintln!("[server] writer flush error: {:?}", error),
+                };
+
+                // Step 6: Shutdown the stream
+                match response_stream.shutdown(std::net::Shutdown::Both) {
+                    Ok(_) => println!("[server] stream shutdown!"),
+                    Err(error) => eprintln!("[server] stream shutdown error: {:?}", error),
+                };
+            }
+            Err(error) => {
+                eprintln!("[server] error: {:?}", error);
+            }
+        }
     }
 }
 

@@ -10,7 +10,7 @@ fn main() {
     println!("[serveros] argv: {:?}", argv);
 
     let port = match args::parse_as_num(&argv, "--port") {
-        Some(port) => port,
+        Some(port) => port as u16,
         None => 8080,
     };
 

@@ -1,10 +1,7 @@
 use crate::core::Config;
 
+use crate::core::http::{HttpRequest, HttpResponse};
 use crate::core::util::get_mime_type;
-use crate::core::http::{
-  HttpRequest,
-  HttpResponse,
-};
 
 use std::collections::HashMap;
 use std::fs;
@@ -55,22 +52,42 @@ impl Server {
     }
 
     fn handle_stream(&self, tcp_stream: &TcpStream) {
-        let req = HttpRequest::from(&tcp_stream);
-        let mut response = HttpResponse::new();
-        req.info();
+        println!("[server] handling stream: {:?}", tcp_stream);
 
-        // Step 1: Get the request URL
-        let url = match req.url() {
-            "/" => "/index.html",
-            uri => uri,
+        let mut request = HttpRequest::from(&tcp_stream);
+        let mut response = HttpResponse::new();
+
+        // req.info();
+
+        let request_url = request.url();
+
+        let url = match request_url {
+            Some(uri) => uri.to_owned(),
+            None => {
+                println!("[server] error: no url found");
+                return;
+            }
         };
 
+        let is_handled = match self.routes.get(&url) {
+            Some(handler) => {
+                handler(&mut request);
+                true
+            }
+            None => false,
+        };
+
+        if is_handled {
+            println!("[server] route handled!");
+            return;
+        }
+
         // TODO: Improve this in the future.
-        let mime = get_mime_type(url);
+        let mime = get_mime_type(&url);
         println!("[server] url: {:} ({:})", url, mime);
 
         // Step 2: Locate the file
-        let bytes = get_file(url);
+        let bytes = get_file(&url);
 
         // Step 3: Send the response
         match bytes {
@@ -105,6 +122,7 @@ impl Server {
     where
         F: Fn(&mut HttpRequest) + 'static,
     {
+        println!("[server] route: {}", path);
         self.routes.insert(path.to_string(), Box::new(handler));
     }
 }

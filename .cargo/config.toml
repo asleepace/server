@@ -1,0 +1,7 @@
+# ABOUT
+# This cargo.toml file is a configuration file for the Rust package manager, Cargo.
+# This enables additional features and customizations for the package.
+
+[alias]
+release = "build --release"
+prod = "run --release --"

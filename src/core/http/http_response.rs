@@ -1,3 +1,4 @@
+#[derive(Clone, Debug)]
 pub struct HttpResponse {
     pub version: String,
     pub status: String,

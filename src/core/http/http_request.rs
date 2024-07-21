@@ -1,3 +1,4 @@
+use super::http_headers::{HttpHeaders, HttpMethod};
 use super::http_response::HttpResponse;
 use crate::core::util::get_mime_type;
 use std::collections::HashMap;
@@ -16,6 +17,7 @@ const CRLF: &str = "\r\n";
 
 #[derive(Clone)]
 pub struct HttpRequest<'a> {
+    pub headers: HttpHeaders,
     pub response: HttpResponse,
     pub tcp_stream: Option<&'a TcpStream>,
     data: Vec<String>,
@@ -24,6 +26,7 @@ pub struct HttpRequest<'a> {
 impl<'a> HttpRequest<'a> {
     pub fn new() -> Self {
         HttpRequest {
+            headers: HttpHeaders::new(),
             data: Vec::new(),
             tcp_stream: None,
             response: HttpResponse::new(),
@@ -31,16 +34,18 @@ impl<'a> HttpRequest<'a> {
     }
 
     pub fn clone(&self) -> Self {
-        println!("cloning request: {:?}", self.data);
+        println!("[http_request] cloning request: {:?}", self.data);
         HttpRequest {
             data: self.data.clone(),
+            headers: self.headers.clone(),
             tcp_stream: self.tcp_stream,
             response: self.response.clone(),
         }
     }
 
     pub fn info(&self) {
-        println!("[http_request] info:\r\n{:?}", self.data);
+        println!("[http_request] info:");
+        println!("\t{:?}", self.headers);
     }
 
     pub fn set_tcp_stream(&mut self, tcp_stream: &'a TcpStream) {
@@ -51,7 +56,15 @@ impl<'a> HttpRequest<'a> {
         self.data = data;
     }
 
-    pub fn from(tcp_stream: &TcpStream) -> Self {
+    pub fn set_headers(&mut self, headers: HttpHeaders) {
+        self.headers = headers;
+    }
+
+    /**
+        Create a new HttpRequest instance from a TcpStream. NOTE: This is the primary
+        entry point for creating a new HttpRequest instance.
+    */
+    pub fn from(tcp_stream: &'a TcpStream) -> Self {
         let data = match read_stream_data(tcp_stream) {
             Ok(data) => data,
             Err(_) => {
@@ -60,7 +73,17 @@ impl<'a> HttpRequest<'a> {
             }
         };
 
+        let headers = match HttpHeaders::from(&data) {
+            Some(headers) => headers,
+            None => {
+                eprintln!("[http_request] error: failed to parse headers");
+                HttpHeaders::new()
+            }
+        };
+
         let mut request = HttpRequest::new();
+        request.set_tcp_stream(tcp_stream);
+        request.set_headers(headers);
         request.set_data(data);
         request
     }
@@ -89,6 +112,7 @@ impl<'a> HttpRequest<'a> {
     pub fn get_file(url: &str) -> Result<Vec<u8>, ()> {
         let path = url.trim_matches('/');
         let file_path = format!("./src/public/{}", path);
+        println!("[http_request] file_path {:?}", file_path);
         return match fs::read(file_path.clone()) {
             Ok(data) => Ok(data),
             Err(_) => {
@@ -96,6 +120,10 @@ impl<'a> HttpRequest<'a> {
                 return Result::Err(());
             }
         };
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.tcp_stream.is_none()
     }
 
     pub fn send_file(&mut self, url: &str) {
@@ -139,6 +167,7 @@ impl<'a> HttpRequest<'a> {
             }
             Err(error) => {
                 eprintln!("[server] error: {:?}", error);
+                self.send_file("/404.html");
             }
         }
     }
@@ -169,4 +198,12 @@ fn read_stream_data(tcp_stream: &TcpStream) -> Result<Vec<String>, ()> {
     }
 
     Ok(header)
+}
+
+pub fn parse_header(header: &str) -> Option<(&str, &str)> {
+    let header = header.trim_end_matches("\r\n");
+    let mut parts = header.splitn(2, ':');
+    let name = parts.next()?.trim();
+    let value = parts.next()?.trim();
+    Some((name, value))
 }

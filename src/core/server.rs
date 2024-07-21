@@ -43,6 +43,7 @@ impl Server {
     }
 
     fn accept(&self, listener: &TcpListener) {
+        println!("[server] accepting connection {:?}", listener);
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => self.handle_stream(&stream),
@@ -57,7 +58,7 @@ impl Server {
         let mut request = HttpRequest::from(&tcp_stream);
         let mut response = HttpResponse::new();
 
-        // req.info();
+        // request.info();
 
         let request_url = request.url();
 
@@ -74,7 +75,10 @@ impl Server {
                 handler(&mut request);
                 true
             }
-            None => false,
+            None => {
+                println!("[server] no route found for: {:?}", url);
+                false
+            }
         };
 
         if is_handled {
@@ -122,7 +126,7 @@ impl Server {
     where
         F: Fn(&mut HttpRequest) + 'static,
     {
-        println!("[server] route: {}", path);
+        println!("[server] dynamic route: {}", path);
         self.routes.insert(path.to_string(), Box::new(handler));
     }
 }
@@ -133,6 +137,7 @@ impl Server {
 pub fn get_file(url: &str) -> Result<Vec<u8>, ()> {
     let path = url.trim_matches('/');
     let file_path = format!("./src/public/{}", path);
+    println!("[server] file path: {}", file_path);
     return match fs::read(file_path.clone()) {
         Ok(data) => Ok(data),
         Err(_) => {

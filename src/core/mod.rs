@@ -3,6 +3,7 @@ pub mod config;
 pub mod error;
 pub mod file;
 pub mod http;
+pub mod http3;
 pub mod server;
 pub mod util;
 

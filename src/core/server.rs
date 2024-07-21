@@ -16,11 +16,10 @@ pub struct Server {
     routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) -> Result<()> + 'static>>,
 }
 
-pub enum ServerError {
-    IoError(std::io::Error),
-}
-
 impl Server {
+    /**
+        Create a new server instance with a TcpListener and Config.
+    */
     pub fn new(connection: TcpListener, config: Config) -> Self {
         Server {
             config,
@@ -30,9 +29,10 @@ impl Server {
     }
 
     /**
-        Create a new server instance.
+        Create a new server instance bound to a host and port.
     */
     pub fn bind(host: &str, port: u16) -> Result<Self> {
+        println!("[serveros] binding http://{}:{}/", host, port);
         let config = Config::new(host, port);
         let domain = config.address();
         let connection = TcpListener::bind(&domain)?;
@@ -41,11 +41,10 @@ impl Server {
     }
 
     /**
-       Start the server and listen for incoming connections.
-       This method will block the current thread until the server.
+        Start the server and handle incoming connections. NOTE: This method is blocking,
+        and should be called after all routes have been defined.
     */
     pub fn start(&mut self) {
-        self.config.print();
         for stream in self.connection.incoming() {
             match stream {
                 Err(error) => eprintln!("[server] accept error: {}", error),
@@ -57,24 +56,28 @@ impl Server {
         }
     }
 
+    /**
+        Handle an incoming TcpStream by reading the incoming request and sending a response
+        back to the client either from a route handler or by serving a static file.
+    */
     fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
+        println!("+--------------------------------------------------------------------------+");
         println!("[server] handling stream: {:?}", tcp_stream);
-
-        let mut request = HttpRequest::with(tcp_stream)?;
-        // request.info();
-
-        let url = match request.url() {
-            Some(uri) => uri.to_owned(),
-            None => {
-                println!("[server] error: no url found");
-                return Err(Error::new(ErrorKind::InvalidInput, "no url found"));
-            }
-        };
-
-        match self.routes.get(&url) {
+        let mut request = HttpRequest::from(tcp_stream)?;
+        let url = request.url();
+        request.info();
+        let did_handle = match self.routes.get(&url) {
             Some(handler) => handler(&mut request),
             None => request.serve_static_file(),
-        }
+        };
+
+        return match did_handle {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                println!("[server] error: {:?}", error);
+                request.send_404()
+            }
+        };
     }
 
     /**

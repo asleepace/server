@@ -22,8 +22,6 @@ fn main() {
         None => "localhost".to_string(),
     };
 
-    println!("[serveros] http://{}:{}/", host, port);
-
     // Start the server.
     let mut server = match Server::bind(&host, port) {
         Ok(server) => server,

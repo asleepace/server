@@ -33,6 +33,13 @@ impl URI {
     }
 
     /**
+        Get the URI as a string.
+    */
+    pub fn to_string(&self) -> String {
+        self.path.clone()
+    }
+
+    /**
         Format the specified path as a public path, this method will remove any
         filters from the path and return a new URI instance.
     */

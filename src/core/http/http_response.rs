@@ -59,7 +59,7 @@ impl HttpResponse {
         Create a new HttpResponse instance with a static file which is ready to be sent.
 
     */
-    pub fn with_static_file(url: String) -> Result<Self, Error> {
+    pub fn with_static_file(url: &str) -> Result<Self, Error> {
         let mut response = HttpResponse {
             headers: HttpHeaders::new(),
             version: String::from("HTTP/1.1"),
@@ -68,7 +68,7 @@ impl HttpResponse {
             code: 200,
             body: None,
         };
-        let (file_bytes, file_type) = HttpResponse::get_file(url.as_str())?;
+        let (file_bytes, file_type) = HttpResponse::get_file(url)?;
         response.set_body(file_bytes, file_type.as_str());
         response.set_code(200);
         Ok(response)

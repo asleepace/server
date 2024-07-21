@@ -23,5 +23,8 @@ fn main() {
 
     let mut server = Server::new(&host, port);
     server.route("/", |_| println!("[serveros] serving index!"));
+    server.route("/info", |sr| {
+        sr.send_file("info.html");
+    });
     server.start();
 }

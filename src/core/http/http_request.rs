@@ -1,6 +1,7 @@
 use super::http_headers::{HttpHeaders, HttpMethod};
 use super::http_response::HttpResponse;
 use crate::core::error::ServerError;
+use crate::core::http::HttpStatus;
 use crate::core::util::get_mime_type;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
@@ -120,8 +121,12 @@ impl HttpRequest {
     }
 
     pub fn info(&self) {
-        println!("[http_request] info:");
-        println!("\t{:?}", self.headers);
+        println!(
+            "[http_request] {:}: {:}",
+            self.headers.method_string(),
+            self.headers.uri_string(),
+        );
+        println!("\t{:}", self.headers.info());
     }
 
     pub fn set_tcp_stream(&mut self, tcp_stream: Arc<TcpStream>) {
@@ -149,8 +154,8 @@ impl HttpRequest {
     pub fn send_404(&mut self) -> Result<()> {
         let mut response = HttpResponse::new();
         let (body, mime) = HttpResponse::get_file("404.html")?;
+        response.set_status(HttpStatus::NotFound);
         response.set_body(body, &mime);
-        response.set_code(404);
         let stream_ref = self
             .connection
             .as_ref()

@@ -70,6 +70,11 @@ impl Server {
             Some(handler) => handler(&mut request),
             None => request.serve_static_file(),
         };
+        // debuggin
+        if did_handle.is_err() {
+            println!("[server] could not handle request: {:?}", url);
+        }
+
         // send a 404 if the request was not handled
         did_handle.or(request.send_404())
     }

@@ -107,6 +107,34 @@ impl HttpHeaders {
         }
     }
 
+    pub fn uri_string(&self) -> String {
+        self.uri.to_string()
+    }
+
+    pub fn method_string(&self) -> String {
+        match self.method {
+            HttpMethod::GET => "GET".to_string(),
+            HttpMethod::POST => "POST".to_string(),
+            HttpMethod::PUT => "PUT".to_string(),
+            HttpMethod::DELETE => "DELETE".to_string(),
+            HttpMethod::HEAD => "HEAD".to_string(),
+            HttpMethod::OPTIONS => "OPTIONS".to_string(),
+            HttpMethod::TRACE => "TRACE".to_string(),
+            HttpMethod::CONNECT => "CONNECT".to_string(),
+            HttpMethod::PATCH => "PATCH".to_string(),
+            HttpMethod::Name(ref name) => name.to_string(),
+        }
+    }
+
+    pub fn version_string(&self) -> String {
+        match self.version {
+            HttpVersion::HTTP1_0 => "HTTP/1.0".to_string(),
+            HttpVersion::HTTP1_1 => "HTTP/1.1".to_string(),
+            HttpVersion::HTTP2_0 => "HTTP/2.0".to_string(),
+            HttpVersion::Name(ref name) => name.to_string(),
+        }
+    }
+
     /**
         Parse the raw data into a HttpHeaders struct, this should be the data from the client
         request which has been split by the control line feed.
@@ -167,5 +195,13 @@ impl HttpHeaders {
 
     pub fn set(&mut self, key: &str, value: &str) {
         self.raw.insert(key.to_string(), value.to_string());
+    }
+
+    pub fn info(&self) -> String {
+        let mut info_str = format!("{:?} {:?} {:?}\n", self.method, self.version, self.uri);
+        for (key, value) in self.raw.iter() {
+            info_str.push_str(&format!("\t{}: {}\n", key, value));
+        }
+        info_str
     }
 }

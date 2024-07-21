@@ -8,13 +8,13 @@ use std::io::{BufRead, BufReader};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 
+use super::HttpStatus;
+
 #[derive(Clone, Debug)]
 pub struct HttpResponse {
     pub headers: HttpHeaders,
     pub version: String,
-    pub status: String,
-    pub code: u16,
-    data: String,
+    pub status: HttpStatus,
     pub body: Option<Vec<u8>>,
 }
 
@@ -38,8 +38,6 @@ impl HttpResponse {
             headers: self.headers.clone(),
             version: self.version.clone(),
             status: self.status.clone(),
-            code: self.code,
-            data: self.data.clone(),
             body: self.body.clone(),
         }
     }
@@ -48,9 +46,7 @@ impl HttpResponse {
         HttpResponse {
             headers: HttpHeaders::new(),
             version: String::from("HTTP/1.1"),
-            status: String::from("OK"),
-            data: String::new(),
-            code: 200,
+            status: HttpStatus::OK,
             body: None,
         }
     }
@@ -63,23 +59,27 @@ impl HttpResponse {
         let mut response = HttpResponse {
             headers: HttpHeaders::new(),
             version: String::from("HTTP/1.1"),
-            status: String::from("OK"),
-            data: String::new(),
-            code: 200,
+            status: HttpStatus::OK,
             body: None,
         };
         let (file_bytes, file_type) = HttpResponse::get_file(url)?;
+        println!("[http_response] setting body ({:})", file_type);
         response.set_body(file_bytes, file_type.as_str());
-        response.set_code(200);
         Ok(response)
     }
 
     pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
         let path = url.trim_matches('/');
         let file_path = format!("./src/public/{}", path);
-        println!("[http_request] file_path {:?}", file_path);
+        println!("[http_request] get file {:?}", file_path);
         let data = fs::read(file_path)?;
         let mime = get_mime_type(url);
+        println!(
+            "[http_request] success getting {:?} ({:}) ({:})",
+            path,
+            mime,
+            data.len()
+        );
         Ok((data, mime))
     }
 
@@ -93,15 +93,14 @@ impl HttpResponse {
         self.headers.set(key, value);
     }
 
-    pub fn set_code(&mut self, code: u16) -> &mut Self {
-        self.code = code;
-        self
+    pub fn set_status(&mut self, status: HttpStatus) {
+        self.status = status;
     }
 
-    pub fn append(&mut self, data: &str) -> &mut Self {
-        self.data.push_str(with_crlf(data).as_str());
-        self
-    }
+    // pub fn append(&mut self, data: &str) -> &mut Self {
+    //     self.data.push_str(with_crlf(data).as_str());
+    //     self
+    // }
 
     /**
         Prepare the response to be sent to the client. The request has 3 parts:
@@ -111,24 +110,17 @@ impl HttpResponse {
     */
     pub fn prepare(&mut self) -> Vec<u8> {
         let mut response = String::new();
-        let header_start = format!("{} {} {}", self.version, self.code, self.status);
-        response.push_str(header_start.as_str());
-
+        response.push_str(&self.http_headers());
         for (key, value) in self.headers.raw.iter() {
             let header_line = format!("{}: {}{}", key, value, CRLF);
             response.push_str(header_line.as_str());
         }
-
         response.push_str(CRLF);
-        response.push_str(CRLF);
-
-        let mut response_bytes = response.into_bytes();
-
+        let mut bytes = response.into_bytes();
         if let Some(mut body) = self.body.take() {
-            response_bytes.append(&mut body);
+            bytes.append(&mut body);
         }
-
-        response_bytes
+        bytes
     }
 
     /**
@@ -144,52 +136,43 @@ impl HttpResponse {
         Ok(())
     }
 
+    /**
+        Prepare the status line of the response. The status line is the first line of the response
+        and contains the HTTP version, the status code and the status message. Contains CRLF.
+    */
     fn http_headers(&self) -> String {
-        let headers = format!("{} {} {}", self.version, self.code, self.status);
-        with_crlf(headers.as_str())
+        format!(
+            "{} {} {}{}",
+            self.version,
+            self.status.code(),
+            self.status.message(),
+            CRLF
+        )
     }
 
-    pub fn append_body(&self, body: &mut Vec<u8>) -> Vec<u8> {
-        let mut response = String::new();
-        let http_headers = self.http_headers();
-        response.push_str(http_headers.as_str());
-        response.push_str(CRLF);
-        response.push_str(CRLF);
-        let mut response_bytes = response.into_bytes();
-        response_bytes.append(body);
-        response_bytes
-    }
+    // pub fn append_body(&self, body: &mut Vec<u8>) -> Vec<u8> {
+    //     let mut response = String::new();
+    //     let http_headers = self.http_headers();
+    //     response.push_str(http_headers.as_str());
+    //     response.push_str(CRLF);
+    //     response.push_str(CRLF);
+    //     let mut response_bytes = response.into_bytes();
+    //     response_bytes.append(body);
+    //     response_bytes
+    // }
 
-    pub fn send_body(&mut self, mime: &str, data: &Vec<u8>, tcp_stream: &mut TcpStream) {
-        let res_data = self
-            .append(format!("Content-Length: {:}", data.len()).as_str())
-            .append(format!("Content-Type: {:}", mime).as_str())
-            .append_body(&mut data.to_owned());
+    // pub fn send_body(&mut self, mime: &str, data: &Vec<u8>, tcp_stream: &mut TcpStream) {
+    //     let res_data = self
+    //         .append(format!("Content-Length: {:}", data.len()).as_str())
+    //         .append(format!("Content-Type: {:}", mime).as_str())
+    //         .append_body(&mut data.to_owned());
 
-        // Step 4: Send the response
-        let mut writer = BufWriter::new(tcp_stream);
-        let did_write = writer.write_all(&mut res_data.to_owned());
-        match did_write {
-            Ok(_) => println!("[server] response sent!"),
-            Err(error) => eprintln!("[server] error: {:?}", error),
-        }
-    }
-}
-
-/**
-    Create a new HTTP response which can be used to send data back to the client.
-    Below is an example of how to use this function:
-    ```
-    use http::http_response::create_http_response;
-    let response = create_http_response();
-    response.append("Content-Type: text/html");
-    ```
-*/
-pub fn create_http_response() -> HttpResponse {
-    let mut response = HttpResponse::new();
-    response
-        .append("Content-Type: */*")
-        .append("<h1>Hello, World!</h1>");
-
-    response
+    //     // Step 4: Send the response
+    //     let mut writer = BufWriter::new(tcp_stream);
+    //     let did_write = writer.write_all(&mut res_data.to_owned());
+    //     match did_write {
+    //         Ok(_) => println!("[server] response sent!"),
+    //         Err(error) => eprintln!("[server] error: {:?}", error),
+    //     }
+    // }
 }

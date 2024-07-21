@@ -70,14 +70,10 @@ impl Server {
             Some(handler) => handler(&mut request),
             None => request.serve_static_file(),
         };
-
-        return match did_handle {
-            Ok(_) => Ok(()),
-            Err(error) => {
-                println!("[server] error: {:?}", error);
-                request.send_404()
-            }
-        };
+        if did_handle.is_err() {
+            return request.send_404();
+        }
+        Ok(())
     }
 
     /**

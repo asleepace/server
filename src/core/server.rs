@@ -70,10 +70,8 @@ impl Server {
             Some(handler) => handler(&mut request),
             None => request.serve_static_file(),
         };
-        if did_handle.is_err() {
-            return request.send_404();
-        }
-        Ok(())
+        // send a 404 if the request was not handled
+        did_handle.or(request.send_404())
     }
 
     /**

@@ -6,6 +6,7 @@ use std::hash::RandomState;
 use std::io::Error;
 use std::net::UdpSocket;
 
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 // Error type for QUIC-related errors
@@ -36,9 +37,10 @@ enum FrameType {
 }
 
 /** quic connection */
+#[derive(Debug)]
 pub struct Connection {
     rand: Rand,
-    socket: UdpSocket,
+    socket: Arc<UdpSocket>,
     connection_id: u64,
     peer_address: std::net::SocketAddr,
     streams: HashMap<u64, Stream>,
@@ -79,7 +81,12 @@ pub enum HandshakePacket {
 }
 
 impl Connection {
-    pub fn new(socket: UdpSocket, peer_address: std::net::SocketAddr) -> Self {
+    pub fn is_ready_for_http3(&self) -> bool {
+        // Implement check for QUIC connection readiness
+        true
+    }
+
+    pub fn new(socket: Arc<UdpSocket>, peer_address: std::net::SocketAddr) -> Self {
         Connection {
             connection_id: generate_random_u64(),
             streams: HashMap::new(),

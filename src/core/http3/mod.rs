@@ -3,6 +3,7 @@ pub mod qpack;
 pub mod quic;
 pub mod rand;
 pub mod tls;
+pub mod walker;
 
 pub use self::http3::Http3Connection;
 pub use self::http3::Http3Server;

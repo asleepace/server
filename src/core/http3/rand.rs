@@ -1,5 +1,6 @@
 use std::hash::{BuildHasher, Hasher, RandomState};
 
+#[derive(Debug)]
 pub struct Rand {
     random_state: RandomState,
     last_generated: u64,

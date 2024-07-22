@@ -1,10 +1,12 @@
 use core::cli;
 use core::cli::args;
 use core::http3::quic::{Connection, QuicError};
-use core::http3::Http3Server;
+use core::http3::{walker, Http3Connection, Http3Server};
 use core::server::Server;
+use std::future::Future;
 use std::io::Error;
 use std::net::UdpSocket;
+use std::task::Poll;
 
 mod core;
 
@@ -54,44 +56,40 @@ fn main() {
 /**
     Test function to spawn a HTTP/3 server in the background.
 */
-pub fn spwan_http3_in_background() -> std::thread::JoinHandle<()> {
-    std::thread::spawn(|| {
-        println!("[main] Spawning HTTP/3 server in background...");
-        match run_quic_server() {
-            Ok(_) => {
-                println!("[main] HTTP/3 server started successfully");
+pub fn spwan_http3_in_background() {
+    let _ = std::thread::spawn(|| loop {
+        walker::block_on(async {
+            match run_quic_server().await {
+                Ok(_) => println!("[main] QUIC server exited successfully"),
+                Err(err) => eprintln!("[main] QUIC server exited with error: {:?}", err),
             }
-            Err(error) => {
-                eprintln!("[main] Failed to start HTTP/3 server: {:?}", error);
-            }
-        }
-    })
+        });
+
+        println!("[main] walker finished running!")
+    });
+}
+
+fn handle_http3_connection(conn: Http3Connection) {
+    // Implement HTTP/3 connection handling
+    println!("[main] handle http3 connection: {:?}", conn);
 }
 
 /**
     Run a QUIC server on the specified address.
 */
-pub fn run_quic_server() -> Result<(), QuicError> {
-    let mut server = Http3Server::new("127.0.0.1:5757").map_err(|_| QuicError::ConnectionError)?;
-    println!("[main] QUIC server started on https://localhost:443/");
+pub async fn run_quic_server() -> Result<(), QuicError> {
+    let server = Http3Server::new("127.0.0.1:4433").unwrap();
+    println!("[main] QUIC server started on http://127.0.0.1:4433/");
 
     loop {
-        match server.accept() {
-            Ok(mut connection) => {
-                println!("[main] Accepted new HTTP/3 connection");
-                match connection.handle_request() {
-                    Ok(_) => {
-                        println!("[main] Handled HTTP/3 request");
-                        return Ok(());
-                    }
-                    Err(_) => {
-                        eprintln!("[main] Failed to handle HTTP/3 request");
-                        return Err(QuicError::ConnectionError);
-                    }
-                }
+        match server.accept().await {
+            Ok(connection) => {
+                println!("[main] New QUIC connection accepted!");
+                handle_http3_connection(connection)
             }
-            Err(_) => {
-                eprintln!("[main] Failed to accept HTTP/3 connection");
+            Err(error) => {
+                eprintln!("[main] Failed to accept QUIC connection: {:?}", error);
+                return Err(QuicError::ConnectionError);
             }
         }
     }

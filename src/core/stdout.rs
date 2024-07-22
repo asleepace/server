@@ -63,7 +63,7 @@ impl Stdout {
         }
     }
 
-    fn send_events(&mut self, data: &str) {
+    pub fn send_events(&mut self, data: &str) {
         for (_, stream) in self.connections.borrow_mut() {
             let response = format!("data: {}\n\n", data);
             match stream.append_body_data(response) {

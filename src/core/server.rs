@@ -41,13 +41,20 @@ impl Server {
 
     /** Log a message to the server's stdout. */
     fn log(&self, name: &str, data: String) {
-        self.stdout.borrow_mut().write(name, data);
+        let mut writeable = self.stdout.borrow_mut();
+        let data_line = format!("{},{}\n", name, data);
+        writeable.write(name, data.to_string());
+        writeable.send_events(&data_line);
+        print!("[server] log: {}", data);
     }
 
     /** Log error messages to the server's stdout. */
     fn log_error(&self, name: &str, data: String) {
         eprintln!("[server] server error: {}", data);
-        self.stdout.borrow_mut().write(name, data);
+        let mut writeable = self.stdout.borrow_mut();
+        let data_line = format!("{},{}\n", name, data);
+        writeable.write(name, data.to_string());
+        writeable.send_events(&data_line);
     }
 
     /** Begin EventSource stream (see stdout) */
@@ -93,6 +100,8 @@ impl Server {
     fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
         println!("+--------------------------------------------------------------------------+");
         println!("[server] handling stream: {:?}", tcp_stream);
+
+        self.log("processing", format!("{:?}", tcp_stream));
 
         let peer_addr = tcp_stream.peer_addr()?;
         let mut request = HttpRequest::from(tcp_stream)?;

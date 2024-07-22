@@ -1,14 +1,20 @@
 use core::cli;
 use core::cli::args;
+use core::http3::quic::{Connection, QuicError};
+use core::http3::{walker, Http3Connection, Http3Server};
 use core::server::Server;
+use core::Stdout;
+use std::future::Future;
+use std::io::Error;
+use std::net::UdpSocket;
+use std::task::Poll;
+use std::thread;
 
 mod core;
 
 fn main() {
     // Process command line arguments.
     let argv = cli::process_args();
-
-    println!("[serveros] argv: {:?}", argv);
 
     // Check if the user has specified a port.
     let port = match args::parse_as_num(&argv, "--port") {
@@ -35,6 +41,17 @@ fn main() {
     server.route("/", |sr| {
         println!("[main] serving route: /");
         sr.send_file("index.html")
+    });
+
+    server.route("/log", |sr| {
+        println!("[main] serving route: events.html");
+        sr.send_file("log.html")
+    });
+
+    // special endpoint for event-streams
+    server.route("/events", |sr| {
+        println!("[main] serving route: events.html");
+        sr.event_souce()
     });
 
     server.route("/info", |sr| {

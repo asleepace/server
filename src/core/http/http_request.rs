@@ -2,6 +2,7 @@ use super::http_headers::{HttpHeaders, HttpMethod};
 use super::http_response::HttpResponse;
 use crate::core::error::ServerError;
 use crate::core::http::HttpStatus;
+use crate::core::server::Flag;
 use crate::core::util::get_mime_type;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
@@ -171,7 +172,7 @@ impl HttpRequest {
         Ok(())
     }
 
-    pub fn serve_static_file(&mut self) -> Result<()> {
+    pub fn serve_static_file(&mut self) -> Result<Flag> {
         let file_url = self.url();
         let mut response = HttpResponse::with_static_file(&file_url)?;
         let bytes = response.prepare();
@@ -185,18 +186,33 @@ impl HttpRequest {
             stream.flush()?;
             stream.shutdown(Shutdown::Both)?;
         }
-        Ok(())
+        Ok(Flag::StaticFile)
     }
 
     pub fn url(&self) -> String {
         self.headers.uri.to_string()
     }
 
+    pub fn event_souce(&mut self) -> Result<Flag> {
+        let result = self.response.start_event_stream();
+        let stream_ref = self
+            .connection
+            .as_ref()
+            .ok_or(Error::new(ErrorKind::NotFound, "failed to get tcp stream"))?;
+        {
+            let mut stream = stream_ref.as_ref();
+            let bytes = self.response.prepare();
+            stream.write_all(&bytes)?;
+            stream.flush()?;
+        }
+        result
+    }
+
     /**
         Loads a file at the given url and sends it to the client, note that this function
         is generally called by the handler functions.
     */
-    pub fn send_file(&mut self, url: &str) -> Result<()> {
+    pub fn send_file(&mut self, url: &str) -> Result<Flag> {
         let mut response = HttpResponse::with_static_file(url)?;
         let stream_ref = self
             .connection
@@ -210,6 +226,25 @@ impl HttpRequest {
             stream.flush()?;
             stream.shutdown(Shutdown::Both)?;
         }
-        Ok(())
+        Ok(Flag::StaticFile)
+    }
+
+    /**
+        Appends bytes to the body of the response, will return true if the bytes were
+        successfully written to the stream. Will return false if the connection is ended,
+        or if the stream is not available.
+    */
+    pub fn append_body_data(&mut self, data: String) -> Result<bool> {
+        let bytes = data.into_bytes();
+        println!("[http_request] appending body data ({} bytes)", bytes.len());
+        match self.connection.as_ref() {
+            None => Ok(false),
+            Some(stream) => {
+                let mut stream = stream.as_ref();
+                stream.write_all(&bytes)?;
+                stream.flush()?;
+                Ok(true)
+            }
+        }
     }
 }

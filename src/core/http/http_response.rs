@@ -9,6 +9,7 @@ use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 
 use super::HttpStatus;
+use crate::core::server::Flag;
 
 #[derive(Clone, Debug)]
 pub struct HttpResponse {
@@ -93,6 +94,25 @@ impl HttpResponse {
 
     pub fn set_status(&mut self, status: HttpStatus) {
         self.status = status;
+    }
+
+    pub fn set_version(&mut self, version: &str) {
+        self.version = version.to_string();
+    }
+
+    /**
+        Start an event stream. This is a special type of response that allows the server to send
+        multiple responses to the client. This is useful for real-time applications like chat
+        applications.
+    */
+    pub fn start_event_stream(&mut self) -> Result<Flag, Error> {
+        self.set_version("HTTP/2.1");
+        self.set_status(HttpStatus::OK);
+        self.headers.set("Content-Type", "text/event-stream");
+        self.headers.set("Cache-Control", "no-cache");
+        self.headers.set("Connection", "keep-alive");
+        self.body = Some("data: session started\n\n".to_string().into_bytes());
+        Ok(Flag::EventStream)
     }
 
     /**

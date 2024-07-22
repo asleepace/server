@@ -34,10 +34,20 @@ pub struct Http3Server {
 }
 
 impl Http3Server {
-    fn new(addr: &str) -> Result<Self, Error> {
+    pub fn new(addr: &str) -> Result<Self, Error> {
         let socket = UdpSocket::bind(addr)?;
-        let quic_listener = quic::handshake(socket)?;
-        Ok(Self { quic_listener })
+        let peer_address = socket.local_addr()?;
+        let mut connection = quic::Connection::new(socket, peer_address);
+        if let Err(error) = connection.handshake() {
+            eprintln!("Failed to initialize QUIC connection {:?}", error);
+            return Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to initialize QUIC connection",
+            ));
+        }
+        Ok(Http3Server {
+            quic_listener: connection,
+        })
     }
 
     /**
@@ -46,7 +56,7 @@ impl Http3Server {
         2. Perform TLS handshake.
         3. Return a new HTTP/3 connection.
     */
-    fn accept(&mut self) -> Result<Http3Connection, Error> {
+    pub fn accept(&mut self) -> Result<Http3Connection, Error> {
         Err(Error::new(
             std::io::ErrorKind::Other,
             "Failed to accept HTTP/3 connection",
@@ -65,7 +75,7 @@ impl Http3Connection {
         2. Process the request.
         3. Generate and send the response.
     */
-    fn handle_request(&mut self) -> Result<(), Error> {
+    pub fn handle_request(&mut self) -> Result<(), Error> {
         Err(Error::new(
             std::io::ErrorKind::Other,
             "Failed to handle HTTP/3 request",

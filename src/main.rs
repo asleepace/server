@@ -43,6 +43,17 @@ fn main() {
         sr.send_file("index.html")
     });
 
+    server.route("/log", |sr| {
+        println!("[main] serving route: events.html");
+        sr.send_file("log.html")
+    });
+
+    // special endpoint for event-streams
+    server.route("/events", |sr| {
+        println!("[main] serving route: events.html");
+        sr.event_souce()
+    });
+
     server.route("/info", |sr| {
         println!("[main] serving route: info.html");
         sr.send_file("info.html")

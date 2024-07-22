@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <title>Server</title>
+        <link rel="icon" type="image/x-icon" href="favicon.png" />
+        <link rel="stylesheet" type="text/css" href="index.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="An all in one server framework." />
+        <meta name="keywords" content="server, rust, web, http, routes" />
+        <meta name="author" content="Colin Teahan" />
+        <meta name="robots" content="index, follow" />
+        <meta name="revisit-after" content="7 days" />
+        <meta name="language" content="English" />
+        <meta name="generator" content="Visual Studio Code" />
+        <meta name="distribution" content="global" />
+        <meta name="rating" content="general" />
+        <!-- <meta name="theme-color" content="#1d1d1d" /> -->
+    </head>
+    <body>
+        <nav>
+            <a id="site-logo" href="/"><h3>serverOS</h3></a>
+        </nav>
+        <article>
+            <h1>Events</h1>
+            <p>
+                To get started with the server all you need to do is create an
+                instance and handle the routes via pattern matching.
+            </p>
+            <pre>
+            <code id="events">
+            </code>
+            </pre>
+        </article>
+    </body>
+    <script>
+        const events = document.getElementById("events");
+        const connection = new EventSource("/events");
+
+        connection.onmessage = function (event) {
+            const row = document.createElement("p");
+            row.textContent = event.data;
+            events.appendChild(row);
+            console.log(event.data);
+        };
+
+        connection.onerror = function (error) {
+            const row = document.createElement("p");
+            row.textContent = error;
+            events.appendChild(row);
+            console.error(error);
+        };
+    </script>
+</html>

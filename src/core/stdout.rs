@@ -1,12 +1,14 @@
+use std::borrow::BorrowMut;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::HashMap, net::TcpStream, sync::Arc};
 
 use super::file::Doc;
+use super::http::HttpRequest;
 
 pub struct Stdout {
-    connections: HashMap<String, Arc<TcpStream>>,
+    connections: HashMap<String, HttpRequest>,
     output_file: String,
     environment: String,
 }
@@ -20,11 +22,10 @@ impl Stdout {
         }
     }
 
-    pub fn add_connection(&mut self, stream: Arc<TcpStream>) {
-        if let Ok(peer_addr) = stream.peer_addr() {
-            println!("[stdout] new connection from: {}", peer_addr.to_string());
-            self.connections.insert(peer_addr.to_string(), stream);
-        }
+    pub fn add_stream(&mut self, stream: HttpRequest) {
+        let stream_name = stream.uri.clone();
+        println!("[stdout] adding stream: {}", stream_name);
+        self.connections.insert(stream_name, stream);
     }
 
     pub fn write(&self, name: &str, data: String) {
@@ -59,6 +60,16 @@ impl Stdout {
         match file.write_all(raw_bytes) {
             Ok(_) => println!("[stdout] wrote to file: {}", self.output_file),
             Err(err) => eprintln!("[stdout] failed to write to file: {}", err),
+        }
+    }
+
+    fn send_events(&mut self, data: &str) {
+        for (_, stream) in self.connections.borrow_mut() {
+            let response = format!("data: {}\n\n", data);
+            match stream.append_body_data(response) {
+                Ok(_) => println!("[stdout] sent event to stream: {}", stream.uri),
+                Err(err) => eprintln!("[stdout] failed to send event: {}", err),
+            }
         }
     }
 

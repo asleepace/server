@@ -75,6 +75,12 @@ h1 {
     font-size: 3rem;
 }
 
+h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", "URW Palladio L", P052,
+        serif;
+    color: var(--code-back-color);
+}
+
 h3 {
     /* font-family:
         San Francisco,
@@ -145,6 +151,11 @@ ul {
 li {
     padding-left: 0.6rem;
     margin: 0.6rem 0;
+}
+
+/* shared css effects */
+.shadow {
+    box-shadow: 0px 4px 8px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* horizontal flex rows */

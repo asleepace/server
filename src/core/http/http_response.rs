@@ -1,6 +1,6 @@
 use crate::core::http::http_headers::HttpHeaders;
 use crate::core::util::get_mime_type;
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::fs;
 use std::io::Error;
@@ -8,13 +8,13 @@ use std::io::{BufRead, BufReader};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 
+use super::http_headers::HttpVersion;
 use super::HttpStatus;
 use crate::core::server::Flag;
 
 #[derive(Clone, Debug)]
 pub struct HttpResponse {
     pub headers: HttpHeaders,
-    pub version: String,
     pub status: HttpStatus,
     pub body: Option<Vec<u8>>,
 }
@@ -37,7 +37,6 @@ impl HttpResponse {
     pub fn clone(&self) -> HttpResponse {
         HttpResponse {
             headers: self.headers.clone(),
-            version: self.version.clone(),
             status: self.status.clone(),
             body: self.body.clone(),
         }
@@ -46,7 +45,6 @@ impl HttpResponse {
     pub fn new() -> Self {
         HttpResponse {
             headers: HttpHeaders::new(),
-            version: String::from("HTTP/1.1"),
             status: HttpStatus::OK,
             body: None,
         }
@@ -58,7 +56,6 @@ impl HttpResponse {
     pub fn with_static_file(url: &str) -> Result<Self, Error> {
         let mut response = HttpResponse {
             headers: HttpHeaders::new(),
-            version: String::from("HTTP/1.1"),
             status: HttpStatus::OK,
             body: None,
         };
@@ -70,19 +67,14 @@ impl HttpResponse {
     pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
         let path = url.trim_matches('/');
         let file_path = format!("./src/public/{}", path);
-        println!("[http_request] get file {:?}", file_path);
+        println!("[http_request] fetch {:?}", file_path);
         let data = fs::read(file_path)?;
         let mime = get_mime_type(url);
-        println!(
-            "[http_request] success getting {:?} ({:}) ({:})",
-            path,
-            mime,
-            data.len()
-        );
         Ok((data, mime))
     }
 
     pub fn set_body(&mut self, body: Vec<u8>, mime: &str) {
+        // println!("[http_response] set_body {} bytes", body.len());
         self.headers.set_content_length(body.len());
         self.headers.set_content_type(mime);
         self.body = Some(body);
@@ -96,8 +88,8 @@ impl HttpResponse {
         self.status = status;
     }
 
-    pub fn set_version(&mut self, version: &str) {
-        self.version = version.to_string();
+    pub fn set_version(&mut self, version: HttpVersion) {
+        self.headers.set_version(version)
     }
 
     /**
@@ -106,11 +98,11 @@ impl HttpResponse {
         applications.
     */
     pub fn start_event_stream(&mut self) -> Result<Flag, Error> {
-        self.set_version("HTTP/2.1");
         self.set_status(HttpStatus::OK);
         self.headers.set("Content-Type", "text/event-stream");
         self.headers.set("Cache-Control", "no-cache");
         self.headers.set("Connection", "keep-alive");
+        self.headers.set("X-Accel-Buffering", "no");
         self.body = Some("data: connected!\n\n".to_string().into_bytes());
         Ok(Flag::EventStream)
     }
@@ -123,17 +115,27 @@ impl HttpResponse {
     */
     pub fn prepare(&mut self) -> Vec<u8> {
         let mut response = String::new();
-        response.push_str(&self.http_headers());
-        for (key, value) in self.headers.raw.iter() {
-            let header_line = format!("{}: {}{}", key, value, CRLF);
-            response.push_str(header_line.as_str());
-        }
-        response.push_str(CRLF);
+        response.push_str(&self.response_headers());
         let mut bytes = response.into_bytes();
-        if let Some(mut body) = self.body.take() {
-            bytes.append(&mut body);
+        match &self.body {
+            Some(body) => {
+                bytes.extend(body);
+            }
+            None => {}
         }
         bytes
+    }
+
+    pub fn response_headers(&self) -> String {
+        let version = self.headers.version_string();
+        let code = self.status.code();
+        let message = self.status.message();
+        let mut http_response_headers = format!("{} {} {}\r\n", version, code, message);
+        for (key, value) in self.headers.raw.borrow() {
+            http_response_headers.push_str(&format!("{}: {}\r\n", key, value));
+        }
+        http_response_headers.push_str("\r\n");
+        http_response_headers
     }
 
     /**
@@ -147,19 +149,5 @@ impl HttpResponse {
         tcp_stream.flush()?;
         tcp_stream.shutdown(Shutdown::Both)?;
         Ok(())
-    }
-
-    /**
-        Prepare the status line of the response. The status line is the first line of the response
-        and contains the HTTP version, the status code and the status message. Contains CRLF.
-    */
-    fn http_headers(&self) -> String {
-        format!(
-            "{} {} {}{}",
-            self.version,
-            self.status.code(),
-            self.status.message(),
-            CRLF
-        )
     }
 }

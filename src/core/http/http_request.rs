@@ -4,6 +4,7 @@ use crate::core::error::ServerError;
 use crate::core::http::HttpStatus;
 use crate::core::server::Flag;
 use crate::core::util::get_mime_type;
+use crate::core::ServerEvent;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fs;
@@ -121,13 +122,8 @@ impl HttpRequest {
         Ok(header)
     }
 
-    pub fn info(&self) {
-        println!(
-            "[http_request] {:}: {:}",
-            self.headers.method_string(),
-            self.headers.uri_string(),
-        );
-        println!("\t{:}", self.headers.info());
+    pub fn info(&self) -> String {
+        self.headers.info()
     }
 
     pub fn set_tcp_stream(&mut self, tcp_stream: Arc<TcpStream>) {
@@ -246,5 +242,17 @@ impl HttpRequest {
                 Ok(true)
             }
         }
+    }
+
+    pub fn server_side_event(&mut self, event: ServerEvent) -> Result<bool> {
+        let mut stream = self
+            .connection
+            .as_ref()
+            .ok_or(ServerError::error("failed to get tcp stream"))?
+            .as_ref();
+
+        stream.write_all(&event.to_bytes())?;
+        stream.flush()?;
+        Ok(true)
     }
 }

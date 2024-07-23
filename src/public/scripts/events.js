@@ -55,6 +55,22 @@ function watchEvents(
     }
   }
 
+  eventSource.onopen = (event) => {
+    console.log("[event] connected!", event);
+    const elem = createRowElement({
+      text: "connected!",
+      style: "color: green",
+    });
+    insertChildAndScroll(elem);
+  };
+
+  // listen to base64 events
+  eventSource.addEventListener("base64", (event) => {
+    const base64 = atob(event.data);
+    const elem = createRowElement({ text: base64 });
+    insertChildAndScroll(elem);
+  });
+
   // incoming events
   eventSource.onmessage = (event) => {
     const data = parseEvent(event);
@@ -62,16 +78,24 @@ function watchEvents(
     insertChildAndScroll(elem);
   };
 
+  function getEventSourceStatus() {
+    switch (eventSource.readyState) {
+      case EventSource.CONNECTING:
+        return "CONNECTING";
+      case EventSource.OPEN:
+        return "OPEN";
+      case EventSource.CLOSED:
+        return "CLOSED";
+    }
+  }
+
   // handle errors
   eventSource.onerror = (error) => {
     console.error("EventSource failed:", error);
     if (config.onErrorDisconnect) eventSource.close();
-    const reconnecting = config.onErrorDisconnect
-      ? "terminated."
-      : "re-connecting";
-
+    const status = getEventSourceStatus();
     const warn = createRowElement({
-      text: `error: disconnected (${reconnecting})`,
+      text: `error: disconnected (${status})`,
       style: "color: red",
     });
 

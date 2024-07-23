@@ -1,9 +1,11 @@
 use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::HashMap, net::TcpStream, sync::Arc};
 
+use super::data::ServerEvent;
 use super::file::Doc;
 use super::http::HttpRequest;
 
@@ -28,7 +30,7 @@ impl Stdout {
         self.connections.insert(stream_name, stream);
     }
 
-    pub fn write(&self, name: &str, data: String) {
+    pub fn write(&mut self, name: &str, data: String) {
         // Write data to csv file.
         // log_time, log_type, log_name, log_host, log_data
         // 2021-09-01 12:00:00, environment, name, data
@@ -61,16 +63,39 @@ impl Stdout {
             Ok(_) => println!("[stdout] wrote to file: {}", self.output_file),
             Err(err) => eprintln!("[stdout] failed to write to file: {}", err),
         }
+
+        // Create server event from which will be broadcasted to all streams.
+        let event = ServerEvent::event("base64", data.to_string());
+
+        println!(
+            "[stdout] total connections: {} total",
+            self.connections.len()
+        );
+
+        // Iterate connections sending server event to each stream, and closing streams that fail.
+        self.connections
+            .retain(|_, stream| match stream.server_side_event(event.clone()) {
+                Ok(_) => {
+                    println!("[stdout] sent event to stream: {}", stream.uri);
+                    true
+                }
+                Err(err) => {
+                    eprintln!("[stdout] failed to send event: {}", err);
+                    false
+                }
+            });
     }
 
-    pub fn send_events(&mut self, data: &str) {
-        for (_, stream) in self.connections.borrow_mut() {
-            let response = format!("data: {}\n\n", data);
-            match stream.append_body_data(response) {
-                Ok(_) => println!("[stdout] sent event to stream: {}", stream.uri),
-                Err(err) => eprintln!("[stdout] failed to send event: {}", err),
-            }
-        }
+    fn keep_alive(&mut self) {
+        let event = ServerEvent::event("keep-alive", "ping".to_string());
+        self.connections
+            .retain(|_, stream| match stream.server_side_event(event.clone()) {
+                Ok(_) => true,
+                Err(err) => {
+                    eprintln!("[stdout] failed to keep stream alive: {}", err);
+                    false
+                }
+            });
     }
 
     fn timestamp() -> String {

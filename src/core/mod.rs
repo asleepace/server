@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod config;
+pub mod data;
 pub mod error;
 pub mod file;
 pub mod http;
@@ -10,4 +11,5 @@ pub mod util;
 
 // pub use self::server::Server;
 pub use self::config::Config;
+pub use self::data::ServerEvent;
 pub use self::stdout::Stdout;

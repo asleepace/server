@@ -1,7 +1,5 @@
 use core::cli;
 use core::cli::args;
-use core::http3::quic::{Connection, QuicError};
-use core::http3::{walker, Http3Connection, Http3Server};
 use core::server::Server;
 use core::Stdout;
 use std::future::Future;

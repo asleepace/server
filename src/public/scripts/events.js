@@ -20,6 +20,16 @@ function createRowElement({ tagName = "p", text = "", style } = {}) {
 }
 
 /**
+ * Check if the container is near the bottom. (50px)
+ */
+function isNearBottom(container, threshold = 50) {
+  return (
+    container.scrollHeight - container.scrollTop - container.clientHeight <
+    threshold
+  );
+}
+
+/**
  * Watch events from event source and display them in the target element.
  *
  * @param {*} config - configuration for event stream.
@@ -37,16 +47,25 @@ function watchEvents(
   const eventSource = new EventSource(config.eventSource);
   const container = document.getElementById(config.targetElement);
 
+  // append child to container and scroll to bottom (if close)
+  function insertChildAndScroll(elem) {
+    container.appendChild(elem);
+    if (isNearBottom(container)) {
+      elem.scrollIntoView({ behavior: "smooth" });
+    }
+  }
+
   // incoming events
   eventSource.onmessage = (event) => {
     const data = parseEvent(event);
     const elem = createRowElement({ text: data });
-    container.appendChild(elem);
+    insertChildAndScroll(elem);
   };
 
   // handle errors
   eventSource.onerror = (error) => {
     console.error("EventSource failed:", error);
+    if (config.onErrorDisconnect) eventSource.close();
     const reconnecting = config.onErrorDisconnect
       ? "terminated."
       : "re-connecting";
@@ -56,11 +75,7 @@ function watchEvents(
       style: "color: red",
     });
 
-    container.appendChild(warn);
-    warn.scrollIntoView({ behavior: "smooth" });
-
-    // close event source if error occurs and onErrorDisconnect is set
-    if (config.onErrorDisconnect) eventSource.close();
+    insertChildAndScroll(warn);
   };
 }
 

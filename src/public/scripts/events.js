@@ -1,5 +1,5 @@
 /**
- *
+ * Parse the incoming event data and return a formatted string.
  * @param {*} event
  */
 function parseEvent(src) {

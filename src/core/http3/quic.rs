@@ -1,5 +1,5 @@
-use crate::core::http3::rand::Rand;
-use crate::core::http3::{generate_random_u64, Http3Connection};
+use crate::core::http3::Http3Connection;
+use crate::core::util::rand;
 
 use std::collections::HashMap;
 use std::hash::RandomState;
@@ -39,7 +39,7 @@ enum FrameType {
 /** quic connection */
 #[derive(Debug)]
 pub struct Connection {
-    rand: Rand,
+    rand: rand::Rand,
     socket: Arc<UdpSocket>,
     connection_id: u64,
     peer_address: std::net::SocketAddr,
@@ -87,12 +87,13 @@ impl Connection {
     }
 
     pub fn new(socket: Arc<UdpSocket>, peer_address: std::net::SocketAddr) -> Self {
+        let mut rand = rand::Rand::new();
         Connection {
-            connection_id: generate_random_u64(),
+            connection_id: rand.generate_u64(),
             streams: HashMap::new(),
-            rand: Rand::new(),
             peer_address,
             socket,
+            rand,
         }
     }
 

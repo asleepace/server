@@ -41,6 +41,10 @@ impl HttpHeaders {
         }
     }
 
+    pub fn set_version(&mut self, version: HttpVersion) {
+        self.version = version;
+    }
+
     pub fn version_from_string(version: &str) -> HttpVersion {
         match version {
             "HTTP/1.0" => HttpVersion::HTTP1_0,
@@ -101,7 +105,7 @@ impl HttpHeaders {
     pub fn new() -> Self {
         HttpHeaders {
             method: HttpMethod::GET,
-            version: HttpVersion::HTTP1_1,
+            version: HttpVersion::HTTP2_0,
             uri: URI::new("/"),
             raw: HashMap::new(),
         }

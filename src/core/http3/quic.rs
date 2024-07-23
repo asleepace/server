@@ -54,7 +54,7 @@ pub struct Stream {
 }
 
 impl Stream {
-    pub fn send(&mut self, data: &[u8]) -> Result<(), QuicError> {
+    pub fn send(&mut self, _data: &[u8]) -> Result<(), QuicError> {
         // Implement stream data sending
         unimplemented!()
     }

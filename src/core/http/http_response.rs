@@ -111,7 +111,7 @@ impl HttpResponse {
         self.headers.set("Content-Type", "text/event-stream");
         self.headers.set("Cache-Control", "no-cache");
         self.headers.set("Connection", "keep-alive");
-        self.body = Some("data: session started\n\n".to_string().into_bytes());
+        self.body = Some("data: connected!\n\n".to_string().into_bytes());
         Ok(Flag::EventStream)
     }
 

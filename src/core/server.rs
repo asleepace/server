@@ -12,6 +12,9 @@ use std::fs;
 use std::io::{BufWriter, Error, ErrorKind, Result, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
+use std::time::Duration;
+
+use super::http::HttpConnections;
 
 pub enum Flag {
     StaticFile,
@@ -21,19 +24,21 @@ pub enum Flag {
 
 pub struct Server {
     config: Config,
-    connection: TcpListener,
+    tcp_listener: TcpListener,
     stdout: RefCell<Stdout>,
     routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) -> Result<Flag> + 'static>>,
+    connections: HttpConnections,
 }
 
 impl Server {
     /**
         Create a new server instance with a TcpListener and Config.
     */
-    pub fn new(connection: TcpListener, config: Config) -> Self {
+    pub fn new(tcp_listener: TcpListener, config: Config) -> Self {
         Server {
             config,
-            connection,
+            tcp_listener,
+            connections: HttpConnections::new(),
             stdout: RefCell::new(Stdout::new("./src/data/events.csv", "development")),
             routes: HashMap::new(),
         }
@@ -41,26 +46,14 @@ impl Server {
 
     /** Log a message to the server's stdout. */
     fn log(&self, name: &str, data: String) {
-        let mut writeable = self.stdout.borrow_mut();
-        let data_line = format!("{},{}\n", name, data);
-        writeable.write(name, data.to_string());
-        writeable.send_events(&data_line);
-        print!("[server] log: {}", data);
+        self.stdout.borrow_mut().write(name, data.to_string());
+        // print!("[server] log: {}", data);
     }
 
     /** Log error messages to the server's stdout. */
     fn log_error(&self, name: &str, data: String) {
         eprintln!("[server] server error: {}", data);
-        let mut writeable = self.stdout.borrow_mut();
-        let data_line = format!("{},{}\n", name, data);
-        writeable.write(name, data.to_string());
-        writeable.send_events(&data_line);
-    }
-
-    /** Begin EventSource stream (see stdout) */
-    fn begin_event_stream(&mut self, request: HttpRequest) {
-        println!("[server] starting event stream...");
-        self.stdout.borrow_mut().add_stream(request)
+        self.stdout.borrow_mut().write(name, data.to_string());
     }
 
     /** Create a new server instance bound to a host and port. */
@@ -79,7 +72,7 @@ impl Server {
         and should be called after all routes have been defined.
     */
     pub fn start(&mut self) {
-        for stream in self.connection.incoming() {
+        for stream in self.tcp_listener.incoming() {
             match stream {
                 Err(error) => self.log_error("err_incoming_stream", error.to_string()),
                 Ok(stream) => match self.handle_stream(Arc::new(stream)) {
@@ -99,9 +92,6 @@ impl Server {
     */
     fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
         println!("+--------------------------------------------------------------------------+");
-        println!("[server] handling stream: {:?}", tcp_stream);
-
-        self.log("processing", format!("{:?}", tcp_stream));
 
         let peer_addr = tcp_stream.peer_addr()?;
         let mut request = HttpRequest::from(tcp_stream)?;
@@ -112,7 +102,7 @@ impl Server {
             format!("{}{}", peer_addr.ip().to_string(), url),
         );
 
-        request.info();
+        self.log("network_request", request.info());
 
         let route_flag = match self.routes.get(&url) {
             Some(handler) => handler(&mut request),
@@ -124,7 +114,7 @@ impl Server {
             Ok(Flag::DynamicRoute) => Ok(()),
             Ok(Flag::EventStream) => {
                 println!("[server] adding event stream...");
-                self.stdout.borrow_mut().add_stream(request);
+                self.connections.add_stream(request);
                 return Ok(());
             }
             Err(err) => {

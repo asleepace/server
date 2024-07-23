@@ -1,2 +1,4 @@
 /target
-/data/events.csv
+
+# Skip events.csv which is too large and created on the fly.
+/src/data/events.csv

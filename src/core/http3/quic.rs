@@ -206,7 +206,7 @@ impl Connection {
         self.rand.generate_u64()
     }
 
-    pub fn send_packet(&mut self, packet_type: PacketType, data: &[u8]) -> Result<(), QuicError> {
+    pub fn send_packet(&mut self, _packet_type: PacketType, _data: &[u8]) -> Result<(), QuicError> {
         // Implement packet sending logic
         // 1. Construct QUIC packet header
         // 2. Add frames to packet

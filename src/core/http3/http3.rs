@@ -66,7 +66,7 @@ impl Http3Server {
 
     fn process_incoming_packet(
         &self,
-        data: &[u8],
+        _data: &[u8],
         peer_addr: std::net::SocketAddr,
     ) -> Result<Option<Connection>, QuicError> {
         // In a real implementation, this would involve:

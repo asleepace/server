@@ -5,29 +5,31 @@
         <link rel="icon" type="image/x-icon" href="favicon.png" />
         <link rel="stylesheet" type="text/css" href="index.css" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="description" content="An all in one server framework." />
+        <meta
+            name="description"
+            content="Live server event stream to view requests, errors and more!"
+        />
         <meta name="keywords" content="server, rust, web, http, routes" />
         <meta name="author" content="Colin Teahan" />
         <meta name="robots" content="index, follow" />
         <meta name="revisit-after" content="7 days" />
         <meta name="language" content="English" />
-        <meta name="generator" content="Visual Studio Code" />
+        <meta name="generator" content="ServerOS" />
         <meta name="distribution" content="global" />
         <meta name="rating" content="general" />
-        <!-- <meta name="theme-color" content="#1d1d1d" /> -->
+        <meta name="theme-color" content="#1d1d1d" />
         <style>
-            #events {
+            #event-stream {
                 flex: 1;
                 overflow-y: auto;
-                padding: 10px;
                 box-sizing: border-box;
                 color: rgba(255, 255, 255, 0.8);
             }
 
-            #event,
-            #events pre,
-            #events code,
-            #events p {
+            #event-stream,
+            #event-stream pre,
+            #event-stream code,
+            #event-stream p {
                 color: rgba(255, 255, 255, 0.8);
                 font-family: monospace;
                 white-space: pre-wrap;
@@ -35,6 +37,7 @@
                 font-size: 14px;
                 border: none;
                 margin: 0;
+                padding: 0;
             }
 
             #event-container {
@@ -46,7 +49,8 @@
                 width: 100vw;
                 height: 100%;
                 flex: 1;
-                padding: 0;
+                padding: 1rem;
+                padding-top: 80px;
                 margin: 0;
             }
 
@@ -54,6 +58,8 @@
                 display: flex;
                 flex-direction: column;
                 height: 100vh;
+                margin: 0;
+                padding: 0;
             }
 
             html,
@@ -72,51 +78,14 @@
     </head>
     <body>
         <div class="scroll-container">
-            <nav>
+            <nav class="shadow">
                 <h2>Event Stream</h2>
                 <a id="site-logo" href="/"><h3>serverOS</h3></a>
             </nav>
             <pre id="event-container">
-                <code id="events">
-                </code>
+                <code id="event-stream"></code>
             </pre>
         </div>
     </body>
-    <script>
-        const events = document.getElementById("events");
-        const connection = new EventSource("/events");
-
-        function createRow(data) {
-            const row = document.createElement("p");
-            row.textContent = data;
-            return row;
-        }
-
-        const greeting = createRow("connection...");
-        events.appendChild(greeting);
-
-        function prependChild(parent, child) {
-            parent.insertBefore(child, parent.firstChild);
-        }
-
-        function scrollToBottom() {
-            events.scrollToBottom();
-        }
-
-        connection.onmessage = function (event) {
-            const row = document.createElement("p");
-            row.textContent = event.data;
-            events.appendChild(row);
-            console.log(event.data);
-            row.scrollIntoView();
-        };
-
-        connection.onerror = function (error) {
-            const row = document.createElement("p");
-            row.style.color = "red";
-            row.textContent = error;
-            events.appendChild(row);
-            row.scrollIntoView();
-        };
-    </script>
+    <script src="/scripts/events.js" defer></script>
 </html>

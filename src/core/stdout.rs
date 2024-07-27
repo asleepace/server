@@ -67,10 +67,10 @@ impl Stdout {
         // Create server event from which will be broadcasted to all streams.
         let event = ServerEvent::event("base64", data.to_string());
 
-        println!(
-            "[stdout] total connections: {} total",
-            self.connections.len()
-        );
+        // println!(
+        //     "[stdout] total connections: {} total",
+        //     self.connections.len()
+        // );
 
         // Iterate connections sending server event to each stream, and closing streams that fail.
         self.connections

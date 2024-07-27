@@ -23,8 +23,8 @@ impl ServerEvent {
 
     pub fn keep_alive() -> Self {
         ServerEvent {
-            data: "event: keep-alive\ndata: ping\n".to_string(),
-            event: None,
+            data: "ping".to_string(),
+            event: Some("keep-alive".to_string()),
             id: None,
             retry: None,
         }
@@ -52,15 +52,15 @@ impl ServerEvent {
     pub fn format(&self) -> String {
         let mut event = String::new();
         if let Some(event_name) = &self.event {
-            event.push_str(&format!("event: {}\n", event_name));
+            event.push_str(&format!("event: {}\r\n", event_name));
         }
         if let Some(event_id) = &self.id {
-            event.push_str(&format!("id: {}\n", event_id));
+            event.push_str(&format!("id: {}\r\n", event_id));
         }
         if let Some(retry) = &self.retry {
-            event.push_str(&format!("retry: {}\n", retry));
+            event.push_str(&format!("retry: {}\r\n", retry));
         }
-        event.push_str(&format!("data: {}\n\n", self.data));
+        event.push_str(&format!("data: {}\r\n\r\n", self.data));
         event
     }
 

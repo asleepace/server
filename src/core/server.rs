@@ -1,7 +1,7 @@
-use crate::core::Config;
-
 use crate::core::http::{HttpRequest, HttpResponse};
 use crate::core::util::get_mime_type;
+use crate::core::Config;
+use crate::core::ServerEvent;
 use crate::core::Stdout;
 
 use std::borrow::BorrowMut;
@@ -46,14 +46,15 @@ impl Server {
 
     /** Log a message to the server's stdout. */
     fn log(&self, name: &str, data: String) {
-        self.stdout.borrow_mut().write(name, data.to_string());
-        // print!("[server] log: {}", data);
+        // self.stdout.borrow_mut().write(name, data.to_string());
+        self.connections.send_event(ServerEvent::data(&data));
     }
 
     /** Log error messages to the server's stdout. */
     fn log_error(&self, name: &str, data: String) {
         eprintln!("[server] server error: {}", data);
-        self.stdout.borrow_mut().write(name, data.to_string());
+        // self.stdout.borrow_mut().write(name, data.to_string());
+        self.connections.send_event(ServerEvent::data(&data));
     }
 
     /** Create a new server instance bound to a host and port. */

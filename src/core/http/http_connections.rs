@@ -1,4 +1,4 @@
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -19,6 +19,17 @@ impl HttpConnections {
             connections: Arc::new(Mutex::new(Vec::new())),
             is_active: Arc::new(Mutex::new(false)),
         }
+    }
+
+    pub fn send_event(&self, event: ServerEvent) {
+        let mut connections = self.connections.lock().unwrap();
+        connections.retain_mut(|stream| match stream.server_side_event(event.clone()) {
+            Ok(_) => true,
+            Err(_) => {
+                println!("[http_connections] dropping connection...");
+                false
+            }
+        });
     }
 
     /**
@@ -44,6 +55,10 @@ impl HttpConnections {
             {
                 let mut is_active = is_active.lock().unwrap();
                 *is_active = true;
+                println!(
+                    "[http_connections] total connections: {}",
+                    connections.lock().unwrap().len()
+                );
             }
             loop {
                 if rx.try_recv().is_ok() {
@@ -64,11 +79,6 @@ impl HttpConnections {
                             }
                         }
                     });
-
-                    println!(
-                        "[http_connections] total connections: {}",
-                        total_connections
-                    );
 
                     if total_connections == 0 {
                         println!("[http_connections] no more connections, stopping thread.");

@@ -66,6 +66,7 @@ function watchEvents(
 
   // listen to base64 events
   eventSource.addEventListener("base64", (event) => {
+    console.log("[event] received base64 event: ", event.data);
     const base64 = atob(event.data);
     const elem = createRowElement({ text: base64 });
     insertChildAndScroll(elem);

@@ -45,13 +45,13 @@ impl Server {
     }
 
     /** Log a message to the server's stdout. */
-    fn log(&self, name: &str, data: String) {
+    fn log(&self, _name: &str, data: String) {
         // self.stdout.borrow_mut().write(name, data.to_string());
         self.connections.send_event(ServerEvent::data(&data));
     }
 
     /** Log error messages to the server's stdout. */
-    fn log_error(&self, name: &str, data: String) {
+    fn log_error(&self, _name: &str, data: String) {
         eprintln!("[server] server error: {}", data);
         // self.stdout.borrow_mut().write(name, data.to_string());
         self.connections.send_event(ServerEvent::data(&data));
@@ -94,14 +94,9 @@ impl Server {
     fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
         println!("+--------------------------------------------------------------------------+");
 
-        let peer_addr = tcp_stream.peer_addr()?;
+        let _peer_addr = tcp_stream.peer_addr()?;
         let mut request = HttpRequest::from(tcp_stream)?;
         let url = request.url();
-
-        self.log(
-            "incoming_stream",
-            format!("{}{}", peer_addr.ip().to_string(), url),
-        );
 
         self.log("network_request", request.info());
 

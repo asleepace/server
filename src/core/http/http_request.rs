@@ -4,6 +4,7 @@ use crate::core::error::ServerError;
 use crate::core::http::HttpStatus;
 use crate::core::server::Flag;
 use crate::core::util::get_mime_type;
+use crate::core::Path;
 use crate::core::ServerEvent;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
@@ -48,12 +49,17 @@ impl HttpRequest {
             None => HttpHeaders::new(),
             Some(headers) => headers,
         };
+
+        let uri = headers.uri.to_string();
+
+        println!("[http_request] new request: {:}", uri);
+
         HttpRequest {
-            uri: headers.uri.to_string(),
             response: HttpResponse::new(),
             connection: Some(stream),
             headers,
             data,
+            uri,
         }
     }
 
@@ -186,7 +192,7 @@ impl HttpRequest {
     }
 
     pub fn url(&self) -> String {
-        self.headers.uri.to_string()
+        self.headers.uri_string()
     }
 
     pub fn event_souce(&mut self) -> Result<Flag> {

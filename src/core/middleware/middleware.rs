@@ -10,8 +10,8 @@ pub trait Middleware: Send + Sync + 'static {
     fn handle(
         &self,
         request: &mut HttpRequest,
-        next: Box<dyn FnOnce(&mut HttpRequest) -> Result<(), std::io::Error>>,
-    ) -> Result<(), std::io::Error>;
+        next: Box<dyn FnOnce(&mut HttpRequest) -> Result<u16, std::io::Error>>,
+    ) -> Result<u16, std::io::Error>;
 }
 
 /**
@@ -32,7 +32,7 @@ impl MiddlewareService {
         self.chain.push(middleware);
     }
 
-    pub fn handle(&mut self, request: &mut HttpRequest) -> Result<(), std::io::Error> {
+    pub fn handle(&mut self, request: &mut HttpRequest) -> Result<u16, std::io::Error> {
         self.exec_middleware_chain(request, 0)
     }
 
@@ -44,9 +44,9 @@ impl MiddlewareService {
         &mut self,
         request: &mut HttpRequest,
         index: usize,
-    ) -> Result<(), std::io::Error> {
+    ) -> Result<u16, std::io::Error> {
         if index >= self.chain.len() {
-            return Ok(());
+            return Ok(0);
         }
         println!("[middleware] executing middleware #{}", index);
 

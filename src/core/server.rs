@@ -110,7 +110,7 @@ impl Server {
                         eprintln!("[server] error handling route: {}", err);
                         let _ = req.send_404();
                     }
-                    Ok(())
+                    Ok(404)
                 }
             },
         );
@@ -218,7 +218,7 @@ impl Server {
     */
     pub fn middleware<F>(&mut self, handler: F)
     where
-        F: Fn(&mut HttpRequest, Box<dyn FnOnce(&mut HttpRequest) -> Result<()>>) -> Result<()>
+        F: Fn(&mut HttpRequest, Box<dyn FnOnce(&mut HttpRequest) -> Result<u16>>) -> Result<u16>
             + Send
             + Sync
             + 'static,
@@ -232,8 +232,8 @@ impl Server {
                 where
                     F: Fn(
                             &mut HttpRequest,
-                            Box<dyn FnOnce(&mut HttpRequest) -> Result<()>>,
-                        ) -> Result<()>
+                            Box<dyn FnOnce(&mut HttpRequest) -> Result<u16>>,
+                        ) -> Result<u16>
                         + Send
                         + Sync
                         + 'static,
@@ -241,8 +241,8 @@ impl Server {
                     fn handle(
                         &self,
                         request: &mut HttpRequest,
-                        next: Box<dyn FnOnce(&mut HttpRequest) -> Result<()>>,
-                    ) -> Result<()> {
+                        next: Box<dyn FnOnce(&mut HttpRequest) -> Result<u16>>,
+                    ) -> Result<u16> {
                         (self.0)(request, next)
                     }
                 }

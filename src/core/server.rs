@@ -59,7 +59,7 @@ impl Server {
 
     /** Create a new server instance bound to a host and port. */
     pub fn bind(host: &str, port: u16) -> Result<Self> {
-        println!("[serveros] binding http://{}:{}/", host, port);
+        println!("[server] binding http://{}:{}/", host, port);
         if host.is_empty() {
             return Err(Error::new(ErrorKind::InvalidInput, "host is empty"));
         }
@@ -72,6 +72,13 @@ impl Server {
         let server = Server::new(connection, config);
         server.log("server_connected", domain);
         Ok(server)
+    }
+
+    /** Terminate all connections and shutdown server. */
+    pub fn shutdown(&self) {
+        println!("[server] shutting down...");
+        self.connections.close_all();
+        self.log("server_shutdown", self.config.address());
     }
 
     /**
@@ -93,11 +100,6 @@ impl Server {
         }
     }
 
-    pub fn shutdown(&self) {
-        println!("[server] shutting down...");
-        self.connections.close_all();
-    }
-
     /**
         Handle an incoming TcpStream by reading the incoming request and sending a response
         back to the client either from a route handler or by serving a static file.
@@ -105,9 +107,13 @@ impl Server {
     fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
         println!("+--------------------------------------------------------------------------+");
 
+        // TODO: implement rate limiting here
+
         let _peer_addr = tcp_stream.peer_addr()?;
         let mut request = HttpRequest::from(tcp_stream)?;
         let url = request.url();
+
+        // TODO: implement middleware here
 
         self.log("network_request", request.info());
 

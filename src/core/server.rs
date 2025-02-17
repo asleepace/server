@@ -1,5 +1,5 @@
 use crate::core::http::{HttpRequest, HttpResponse};
-use crate::core::middleware::MiddlewareService;
+use crate::core::middleware::{Middleware, MiddlewareService};
 use crate::core::util::get_mime_type;
 use crate::core::Config;
 use crate::core::ServerEvent;
@@ -9,11 +9,11 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::format;
-use std::fs;
 use std::io::{BufWriter, Error, ErrorKind, Result, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use std::{fs, thread};
 
 use super::http::HttpConnections;
 
@@ -29,7 +29,7 @@ pub struct Server {
     stdout: RefCell<Stdout>,
     routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) -> Result<Flag> + 'static>>,
     connections: HttpConnections,
-    middleware: MiddlewareService,
+    middleware_service: Arc<Mutex<MiddlewareService>>,
 }
 
 impl Server {
@@ -41,7 +41,7 @@ impl Server {
             config,
             tcp_listener,
             connections: HttpConnections::new(),
-            middleware: MiddlewareService::new(),
+            middleware_service: Arc::new(Mutex::new(MiddlewareService::new())),
             stdout: RefCell::new(Stdout::new("./src/data/events.csv", "development")),
             routes: HashMap::new(),
         }
@@ -89,16 +89,35 @@ impl Server {
         and should be called after all routes have been defined.
     */
     pub fn start(&mut self) {
+        println!("[server] starting server...");
         for stream in self.tcp_listener.incoming() {
             match stream {
                 Err(error) => self.log_error("err_incoming_stream", error.to_string()),
-                Ok(stream) => match self.handle_stream(Arc::new(stream)) {
-                    Ok(_) => (),
-                    Err(err) => {
-                        self.log_error("err_server_start", err.to_string());
-                        eprintln!("[server] error: {}", err)
+                Ok(stream) => self.handle_request(stream),
+            }
+        }
+    }
+
+    fn handle_request(&self, stream: TcpStream) {
+        match HttpRequest::from(Arc::new(stream)) {
+            Err(error) => self.log_error("err_http_request", error.to_string()),
+            Ok(mut request) => {
+                let middleware = Arc::clone(&self.middleware_service);
+                let handle = thread::spawn(move || {
+                    let mut middleware = middleware.lock().unwrap();
+                    match middleware.handle(&mut request) {
+                        Err(err) => {
+                            println!("[serrver] error on handle: {}", err.to_string());
+                        }
+                        Ok(_) => {
+                            println!("[server] finished handling request");
+                        }
                     }
-                },
+                });
+
+                if let Err(err) = handle.join() {
+                    println!("[server] error on handle: {:?}", err);
+                }
             }
         }
     }
@@ -158,5 +177,49 @@ impl Server {
     {
         println!("[server] dynamic route: {}", path);
         self.routes.insert(path.to_string(), Box::new(handler));
+    }
+
+    /**
+        Register middleware.
+    */
+    pub fn middleware<F>(&mut self, handler: F)
+    where
+        F: Fn(&mut HttpRequest, Box<dyn FnOnce(&mut HttpRequest) -> Result<()>>) -> Result<()>
+            + Send
+            + Sync
+            + 'static,
+    {
+        match self.middleware_service.lock() {
+            Ok(mut mid) => {
+                // Create wrapper struct for the closure
+                struct ClosureMiddleware<F>(F);
+
+                impl<F> Middleware for ClosureMiddleware<F>
+                where
+                    F: Fn(
+                            &mut HttpRequest,
+                            Box<dyn FnOnce(&mut HttpRequest) -> Result<()>>,
+                        ) -> Result<()>
+                        + Send
+                        + Sync
+                        + 'static,
+                {
+                    fn handle(
+                        &self,
+                        request: &mut HttpRequest,
+                        next: Box<dyn FnOnce(&mut HttpRequest) -> Result<()>>,
+                    ) -> Result<()> {
+                        (self.0)(request, next)
+                    }
+                }
+
+                // Box the middleware before registering
+                let boxed_middleware: Box<dyn Middleware> = Box::new(ClosureMiddleware(handler));
+                mid.register(boxed_middleware);
+            }
+            Err(err) => {
+                eprintln!("[server] failed to register middleware: {}", err);
+            }
+        }
     }
 }

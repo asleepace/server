@@ -1,5 +1,6 @@
 use core::cli;
 use core::cli::args;
+use core::http::HttpRequest;
 use core::server::Server;
 use core::Stdout;
 use std::future::Future;
@@ -35,7 +36,24 @@ fn main() {
         }
     };
 
-    // Define routes.
+    // MARK: Middleware
+
+    server.middleware(|req, next| {
+        println!("[middleware] {:?}: {}", req.headers.method, req.uri);
+        next(req)
+    });
+
+    server.middleware(|req, next| {
+        let res = next(req);
+        println!(
+            "[middleware] finished ({:?}): {}",
+            req.response.status, req.uri
+        );
+        res
+    });
+
+    // MARK: Routes
+
     server.route("/", |sr| {
         println!("[main] serving route: /");
         sr.send_file("index.html")

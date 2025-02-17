@@ -27,7 +27,11 @@ pub struct Server {
     config: Config,
     tcp_listener: TcpListener,
     stdout: RefCell<Stdout>,
-    routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) -> Result<Flag> + 'static>>,
+    routes: Arc<
+        Mutex<
+            HashMap<String, Box<dyn Fn(&mut HttpRequest) -> Result<Flag> + Sync + Send + 'static>>,
+        >,
+    >,
     connections: HttpConnections,
     middleware_service: Arc<Mutex<MiddlewareService>>,
 }
@@ -43,7 +47,7 @@ impl Server {
             connections: HttpConnections::new(),
             middleware_service: Arc::new(Mutex::new(MiddlewareService::new())),
             stdout: RefCell::new(Stdout::new("./src/data/events.csv", "development")),
-            routes: HashMap::new(),
+            routes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -89,6 +93,29 @@ impl Server {
         and should be called after all routes have been defined.
     */
     pub fn start(&mut self) {
+        // NOTE: This is a bit hacky, but we register the last middleware as a route handler
+        // to ensure that the middleware chain is executed before the route handler.
+        let routes = Arc::clone(&self.routes);
+        self.middleware(
+            move |req, next| match routes.lock().unwrap().get(&req.url()) {
+                None => {
+                    if let Err(err) = req.serve_static_file() {
+                        eprintln!("[server] error serving static file: {}", err);
+                        let _ = req.send_404();
+                    }
+                    next(req)
+                }
+                Some(handler) => {
+                    if let Err(err) = handler(req) {
+                        eprintln!("[server] error handling route: {}", err);
+                        let _ = req.send_404();
+                    }
+                    Ok(())
+                }
+            },
+        );
+
+        // register routes as the last middleware
         println!("[server] starting server...");
         for stream in self.tcp_listener.incoming() {
             match stream {
@@ -126,57 +153,64 @@ impl Server {
         Handle an incoming TcpStream by reading the incoming request and sending a response
         back to the client either from a route handler or by serving a static file.
     */
-    fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
-        println!("+--------------------------------------------------------------------------+");
+    // fn handle_stream(&self, tcp_stream: Arc<TcpStream>) -> Result<()> {
+    //     println!("+--------------------------------------------------------------------------+");
 
-        // TODO: implement rate limiting here
+    //     // TODO: implement rate limiting here
 
-        let _peer_addr = tcp_stream.peer_addr()?;
-        let mut request = HttpRequest::from(tcp_stream)?;
-        let url = request.url();
+    //     let _peer_addr = tcp_stream.peer_addr()?;
+    //     let mut request = HttpRequest::from(tcp_stream)?;
+    //     let url = request.url();
 
-        // TODO: implement middleware here
+    //     // TODO: implement middleware here
 
-        self.log("network_request", request.info());
+    //     self.log("network_request", request.info());
 
-        let route_flag = match self.routes.get(&url) {
-            Some(handler) => handler(&mut request),
-            None => request.serve_static_file(),
-        };
+    //     let route_flag = match self.routes.get(&url) {
+    //         Some(handler) => handler(&mut request),
+    //         None => request.serve_static_file(),
+    //     };
 
-        let did_handle = match route_flag {
-            Ok(Flag::StaticFile) => Ok(()),
-            Ok(Flag::DynamicRoute) => Ok(()),
-            Ok(Flag::EventStream) => {
-                println!("[server] adding event stream...");
-                self.connections.add_stream(request);
-                return Ok(());
-            }
-            Err(err) => {
-                self.log_error("err_route_flag", err.to_string());
-                Err(Error::new(ErrorKind::Other, err))
-            }
-        };
+    //     let did_handle = match route_flag {
+    //         Ok(Flag::StaticFile) => Ok(()),
+    //         Ok(Flag::DynamicRoute) => Ok(()),
+    //         Ok(Flag::EventStream) => {
+    //             println!("[server] adding event stream...");
+    //             self.connections.add_stream(request);
+    //             return Ok(());
+    //         }
+    //         Err(err) => {
+    //             self.log_error("err_route_flag", err.to_string());
+    //             Err(Error::new(ErrorKind::Other, err))
+    //         }
+    //     };
 
-        // debugging
-        if did_handle.is_err() {
-            println!("[server] could not handle request: {:?}", url);
-            self.log_error("err_url_not_handled", url.to_string())
-        }
+    //     // debugging
+    //     if did_handle.is_err() {
+    //         println!("[server] could not handle request: {:?}", url);
+    //         self.log_error("err_url_not_handled", url.to_string())
+    //     }
 
-        // send a 404 if the request was not handled
-        did_handle.or(request.send_404())
-    }
+    //     // send a 404 if the request was not handled
+    //     did_handle.or(request.send_404())
+    // }
 
     /**
         Register a route handler.
     */
     pub fn route<F>(&mut self, path: &str, handler: F)
     where
-        F: Fn(&mut HttpRequest) -> Result<Flag> + 'static,
+        F: Fn(&mut HttpRequest) -> Result<Flag> + Send + Sync + 'static,
     {
         println!("[server] dynamic route: {}", path);
-        self.routes.insert(path.to_string(), Box::new(handler));
+        match self.routes.lock() {
+            Ok(mut routes) => {
+                routes.insert(path.to_string(), Box::new(handler));
+            }
+            Err(err) => {
+                eprintln!("[server] failed to register route: {}", err);
+            }
+        }
     }
 
     /**

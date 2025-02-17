@@ -1,4 +1,5 @@
 use crate::core::http::{HttpRequest, HttpResponse};
+use crate::core::middleware::MiddlewareService;
 use crate::core::util::get_mime_type;
 use crate::core::Config;
 use crate::core::ServerEvent;
@@ -28,6 +29,7 @@ pub struct Server {
     stdout: RefCell<Stdout>,
     routes: HashMap<String, Box<dyn Fn(&mut HttpRequest) -> Result<Flag> + 'static>>,
     connections: HttpConnections,
+    middleware: MiddlewareService,
 }
 
 impl Server {
@@ -39,6 +41,7 @@ impl Server {
             config,
             tcp_listener,
             connections: HttpConnections::new(),
+            middleware: MiddlewareService::new(),
             stdout: RefCell::new(Stdout::new("./src/data/events.csv", "development")),
             routes: HashMap::new(),
         }

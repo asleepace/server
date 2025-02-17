@@ -5,6 +5,7 @@ pub mod error;
 pub mod file;
 pub mod http;
 pub mod http3;
+pub mod middleware;
 pub mod server;
 pub mod stdout;
 pub mod url;

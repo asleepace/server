@@ -164,7 +164,7 @@ impl HttpRequest {
             .as_ref()
             .ok_or(ServerError::error("failed to get tcp stream"))?;
         {
-            // hnadle this in a block to drop the mutable borrow
+            // handle this in a block to drop the mutable borrow
             let mut stream = stream_ref.as_ref();
             let bytes = response.prepare();
             stream.write_all(&bytes)?;
@@ -260,5 +260,22 @@ impl HttpRequest {
         stream.write_all(&event.to_bytes())?;
         stream.flush()?;
         Ok(true)
+    }
+
+    /**
+       Close the current connection.
+    */
+    pub fn close(&self) -> std::io::Result<()> {
+        println!("[http_request] closing...");
+        match self.connection.as_ref() {
+            Some(stream) => {
+                println!("[http_request] shutting down stream...");
+                stream.shutdown(Shutdown::Both)
+            }
+            None => {
+                println!("[http_request] connection already closed!");
+                Ok(())
+            }
+        }
     }
 }

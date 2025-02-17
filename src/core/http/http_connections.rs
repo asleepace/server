@@ -21,6 +21,26 @@ impl HttpConnections {
         }
     }
 
+    pub fn close_all(&self) {
+        println!("[http_connections] closing all connections ...");
+        let mut connections = self.connections.lock().unwrap();
+        connections.retain_mut(
+            |stream| match stream.server_side_event(ServerEvent::close()) {
+                Ok(_) => match stream.close() {
+                    Ok(_) => false,
+                    Err(_) => {
+                        println!("[http_connections] dropping connection...");
+                        false
+                    }
+                },
+                Err(_) => {
+                    println!("[http_connections] dropping connection...");
+                    false
+                }
+            },
+        );
+    }
+
     pub fn send_event(&self, event: ServerEvent) {
         let mut connections = self.connections.lock().unwrap();
         connections.retain_mut(|stream| match stream.server_side_event(event.clone()) {

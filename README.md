@@ -3,6 +3,13 @@
 An all-in-one server ready for deployment.
 
 ```bash
+# default host and port
+http://localhost:8080/
+```
+
+## Build & Run
+
+```bash
 # buidld in deverlopment mode
 cargo run
 

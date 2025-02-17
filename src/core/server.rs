@@ -60,6 +60,12 @@ impl Server {
     /** Create a new server instance bound to a host and port. */
     pub fn bind(host: &str, port: u16) -> Result<Self> {
         println!("[serveros] binding http://{}:{}/", host, port);
+        if host.is_empty() {
+            return Err(Error::new(ErrorKind::InvalidInput, "host is empty"));
+        }
+        if port <= 0 {
+            return Err(Error::new(ErrorKind::InvalidInput, "invalid port"));
+        }
         let config = Config::new(host, port);
         let domain = config.address();
         let connection = TcpListener::bind(&domain)?;
@@ -85,6 +91,11 @@ impl Server {
                 },
             }
         }
+    }
+
+    pub fn shutdown(&self) {
+        println!("[server] shutting down...");
+        self.connections.close_all();
     }
 
     /**

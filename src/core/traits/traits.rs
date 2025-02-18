@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 /// A shared state trait which consists of `Arc` and `RwLock`.
 /// This allows for many shared read-only references to the state,
 /// and only one mutable reference to the state.
-trait ArcRwLock<T>: Clone + Send + Sync {
+pub trait ArcRwLock<T>: Clone + Send + Sync {
     /// Create a new shared state.
     fn new(value: T) -> Self;
 
@@ -22,7 +22,7 @@ trait ArcRwLock<T>: Clone + Send + Sync {
 /// and implements the `ArcRwLock` trait. This allows for many
 /// shared read-only references to the state, and only one mutable
 /// reference to the state.
-struct SharedState<T>(Arc<RwLock<T>>);
+pub struct SharedState<T>(Arc<RwLock<T>>);
 
 impl<T> Clone for SharedState<T> {
     fn clone(&self) -> Self {

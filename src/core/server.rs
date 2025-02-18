@@ -1,6 +1,7 @@
 use crate::core::cli;
 use crate::core::http::{HttpRequest, HttpResponse};
 use crate::core::middleware::{Middleware, MiddlewareService};
+// use crate::core::traits::SharedState;
 use crate::core::util::get_mime_type;
 use crate::core::Config;
 use crate::core::ServerEvent;
@@ -16,9 +17,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{fs, thread};
 
-use crate::core::traits::SharedState;
-
 use super::http::HttpConnections;
+use super::traits::traits::SharedState;
 
 pub enum Flag {
     StaticFile,
@@ -28,7 +28,7 @@ pub enum Flag {
 
 pub struct Server {
     config: Config,
-    shared: SharedSta
+    // http_connections: SharedState,
     tcp_listener: TcpListener,
     stdout: RefCell<Stdout>,
     routes: Arc<

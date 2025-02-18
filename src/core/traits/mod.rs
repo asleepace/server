@@ -1,4 +1,3 @@
 pub mod traits;
 
-use self::traits::ArcRwLock;
-use self::traits::SharedState;
+pub use self::traits::ArcRwLock;

@@ -4,37 +4,17 @@ use core::http::HttpRequest;
 use core::server::Server;
 use core::Stdout;
 use std::future::Future;
-use std::io::Error;
+use std::io::{Error, Result};
 use std::net::UdpSocket;
 use std::task::Poll;
 use std::thread;
 
 mod core;
 
-fn main() {
-    // Process command line arguments.
-    let argv = cli::process_args();
+fn main() -> Result<()> {
+    // MARK: Server
 
-    // Check if the user has specified a port.
-    let port = match args::parse_as_num(&argv, "--port") {
-        Some(port) => port as u16,
-        None => 8080,
-    };
-
-    // Check if the user has specified a host.
-    let host = match args::parse_as_str(&argv, "--host") {
-        Some(host) => host,
-        None => "localhost".to_string(),
-    };
-
-    // Start the server.
-    let mut server = match Server::bind(&host, port) {
-        Ok(server) => server,
-        Err(err) => {
-            eprintln!("[serveros] failed to start server: {}", err);
-            return;
-        }
-    };
+    let mut server = Server::instance()?;
 
     // MARK: Middleware
 
@@ -71,11 +51,9 @@ fn main() {
 
     server.middleware(|req, next| {
         println!("[middleware][1] auth!");
-
         if req.uri == "/auth" {
             return Ok(401);
         }
-
         next(req)
     });
 
@@ -83,8 +61,8 @@ fn main() {
         let res = next(req);
         // handle after requests here...
         println!(
-            "[middleware][2] finished ({:?}): {}",
-            req.response.status, req.uri
+            "[middleware] {:?} {} ({:?})",
+            req.headers.method, req.uri, req.response.status
         );
         res
     });
@@ -113,4 +91,5 @@ fn main() {
     });
 
     server.start();
+    Ok(())
 }

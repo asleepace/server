@@ -1,3 +1,4 @@
+use crate::core::cli;
 use crate::core::http::{HttpRequest, HttpResponse};
 use crate::core::middleware::{Middleware, MiddlewareService};
 use crate::core::util::get_mime_type;
@@ -15,6 +16,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{fs, thread};
 
+use crate::core::traits::SharedState;
+
 use super::http::HttpConnections;
 
 pub enum Flag {
@@ -25,6 +28,7 @@ pub enum Flag {
 
 pub struct Server {
     config: Config,
+    shared: SharedSta
     tcp_listener: TcpListener,
     stdout: RefCell<Stdout>,
     routes: Arc<
@@ -37,9 +41,25 @@ pub struct Server {
 }
 
 impl Server {
-    /**
-        Create a new server instance with a TcpListener and Config.
-    */
+    /// Create a new server instance from command line arguments,
+    /// or will default to `http://localhost:8080` if no arguments
+    /// are provided.
+    pub fn instance() -> Result<Server> {
+        let argv = cli::process_args();
+        let port = match cli::args::parse_as_num(&argv, "--port") {
+            Some(port) => port as u16,
+            None => 8080,
+        };
+        let host = match cli::args::parse_as_str(&argv, "--host") {
+            Some(host) => host,
+            None => "localhost".to_string(),
+        };
+        Server::bind(&host, port)
+    }
+
+    /// Create a new server instance with a TcpListener and Config.
+    /// NOTE: Prefer calling `Server::bind` instead of this method,
+    /// or use `Server::instance` to create a server instance.
     pub fn new(tcp_listener: TcpListener, config: Config) -> Self {
         Server {
             config,
@@ -51,16 +71,14 @@ impl Server {
         }
     }
 
-    /** Log a message to the server's stdout. */
+    /// Log messages to the server's stdout.
     fn log(&self, _name: &str, data: String) {
-        // self.stdout.borrow_mut().write(name, data.to_string());
         self.connections.send_event(ServerEvent::data(&data));
     }
 
-    /** Log error messages to the server's stdout. */
+    /// Log error messages to the server's stdout.
     fn log_error(&self, _name: &str, data: String) {
         eprintln!("[server] server error: {}", data);
-        // self.stdout.borrow_mut().write(name, data.to_string());
         self.connections.send_event(ServerEvent::data(&data));
     }
 
@@ -83,9 +101,10 @@ impl Server {
 
     /** Terminate all connections and shutdown server. */
     pub fn shutdown(&self) {
-        println!("[server] shutting down...");
-        self.connections.close_all();
         self.log("server_shutdown", self.config.address());
+        self.middleware_service.lock().unwrap().clear();
+        self.connections.close_all();
+        println!("[server] shutting down...");
     }
 
     /**
@@ -126,6 +145,7 @@ impl Server {
     }
 
     fn handle_request(&self, stream: TcpStream) {
+        println!("[server] handle stream: {:?}", stream);
         match HttpRequest::from(Arc::new(stream)) {
             Err(error) => self.log_error("err_http_request", error.to_string()),
             Ok(mut request) => {

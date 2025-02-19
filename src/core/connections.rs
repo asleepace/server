@@ -6,19 +6,25 @@ use std::sync::Arc;
 use std::usize;
 use std::vec::Vec;
 
-use super::http::http_request;
-
 pub struct Connections {
-    tcp_ttl: u32,
     tcp_incoming: SharedState<Vec<Arc<TcpStream>>>,
 }
 
 impl Connections {
     pub fn new() -> Self {
         Connections {
-            tcp_ttl: 30,
             tcp_incoming: SharedState::new(Vec::new()),
         }
+    }
+
+    /// Configure the incoming TCP stream by setting the TTL and non-blocking options.
+    /// NOTE: Some of these options throw errors in dev.
+    /// TODO: Handle rate limiting and other options.
+    fn configure(tcp_stream: TcpStream) -> Result<TcpStream, std::io::Error> {
+        tcp_stream.set_ttl(30)?;
+        tcp_stream.set_nonblocking(true)?;
+        tcp_stream.set_nodelay(true)?;
+        Ok(tcp_stream)
     }
 
     /// Process the incoming TCP stream by adding the stream to the incoming TCP streams
@@ -41,21 +47,13 @@ impl Connections {
     /// valid, and pushing the stream to the incoming TCP streams. The result returned
     /// is the current index of the incoming TCP streams.
     pub fn add(&self, stream: TcpStream) -> Result<usize, std::io::Error> {
-        // println!("[connections] incoming: {:?}", stream.peer_addr());
-        // stream.set_ttl(self.tcp_ttl)?; // NOTE: will throw!
-        // if let Err(e) = stream.set_ttl(self.tcp_ttl) {
-        //     println!("[connections] error setting TTL: {:?}", e);
-        // }
-        // if let Err(e) = stream.set_nonblocking(true) {
-        //     println!("[connections] error setting nodelay: {:?}", e);
-        // }
-        // stream.set_read_timeout(duration)
-        // stream.set_write_timeout(duration)
-        // stream.set_nonblocking(true)
+        // let stream = Connections::configure(stream)?;
         self.tcp_incoming.write(|tcp_incoming| {
-            tcp_incoming.push(Arc::new(stream));
-            println!("[connections] added new stream: {}", tcp_incoming.len());
-            Ok(tcp_incoming.len() - 1)
+            let arc_stream = Arc::new(stream);
+            let idx_stream = tcp_incoming.len();
+            tcp_incoming.push(arc_stream);
+            println!("[connections] added new stream: {}", idx_stream);
+            Ok(idx_stream)
         })
     }
 

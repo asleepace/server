@@ -7,7 +7,7 @@ use std::future::Future;
 use std::io::{Error, Result};
 use std::net::UdpSocket;
 use std::task::Poll;
-use std::thread;
+use std::{thread, time};
 
 mod core;
 
@@ -19,76 +19,57 @@ fn main() -> Result<()> {
     // MARK: Middleware
 
     server.middleware(|req, next| {
-        println!("[middleware][0] {:?}: {}", req.headers.method, req.uri);
-        let time_start = std::time::Instant::now();
+        println!("{:?}: {}", req.headers.method, req.uri);
         // handle before requests here...
         let res = next(req);
         // handle after requests here...
-        let time_end = std::time::Instant::now();
-        let duration = time_end - time_start;
-        println!(
-            "[middleware][0] finished ({:?}): {} ({}ms)",
-            req.response.status,
-            req.uri,
-            duration.as_millis()
-        );
-
         match res {
             Ok(404) => {
-                println!("[middleware][0] not found!");
                 let _ = req.send_404();
                 return Ok(404);
             }
-            Ok(401) => {
-                println!("[middleware][0] unauthorized access!");
-                return Ok(401);
-            }
-            _ => {}
+            Ok(401) => Ok(401),
+            _ => res,
         }
-
-        return res;
     });
 
+    // Example Auth middleware
     server.middleware(|req, next| {
-        println!("[middleware][1] auth!");
         if req.uri == "/auth" {
             return Ok(401);
         }
         next(req)
     });
 
+    // Example post-processing
     server.middleware(|req, next| {
         let res = next(req);
         // handle after requests here...
-        println!(
-            "[middleware] {:?} {} ({:?})",
-            req.headers.method, req.uri, req.response.status
-        );
         res
     });
 
     // MARK: Routes
 
-    server.route("/", |sr| {
-        println!("[main] serving route: /");
-        sr.send_file("index.html")
-    });
+    // server.route("/", |sr| {
+    //     println!("[main] serving route: /");
+    //     sr.send_file("index.html")
+    // });
 
-    server.route("/log", |sr| {
-        println!("[main] serving route: events.html");
-        sr.send_file("log.html")
-    });
+    // server.route("/log", |sr| {
+    //     println!("[main] serving route: events.html");
+    //     sr.send_file("log.html")
+    // });
 
-    // special endpoint for event-streams
-    server.route("/events", |sr| {
-        println!("[main] serving route: events.html");
-        sr.event_souce()
-    });
+    // // special endpoint for event-streams
+    // server.route("/events", |sr| {
+    //     println!("[main] serving route: events.html");
+    //     sr.event_souce()
+    // });
 
-    server.route("/info", |sr| {
-        println!("[main] serving route: info.html");
-        sr.send_file("info.html")
-    });
+    // server.route("/info", |sr| {
+    //     println!("[main] serving route: info.html");
+    //     sr.send_file("info.html")
+    // });
 
     server.start();
     Ok(())

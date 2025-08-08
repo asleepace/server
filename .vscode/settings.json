@@ -2,11 +2,11 @@
   "editor.formatOnSave": true,
   "editor.inlayHints.enabled": "off",
   "editor.semanticHighlighting.enabled": false,
-  "editor.occurrencesHighlight": false,
+  "editor.occurrencesHighlight": "off",
   "editor.selectionHighlight": false,
   "editor.renderValidationDecorations": "editable",
   "problems.showCurrentInStatus": false,
-  "editor.lightbulb.enabled": false,
+  "editor.lightbulb.enabled": "off",
   "workbench.colorCustomizations": {
     "editorWarning.foreground": "#00000000",
     "editorInfo.foreground": "#00000000"

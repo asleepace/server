@@ -95,51 +95,8 @@ fn main() -> Result<()> {
                 Err(e) => Err(e),
             },
             HttpMethod::POST => {
-                // Read body based on Content-Length if provided; otherwise take nothing
-                let len = sr
-                    .headers
-                    .get("Content-Length")
-                    .and_then(|v| v.parse::<usize>().ok())
-                    .unwrap_or(0);
-                let mut data = String::new();
-                if len > 0 {
-                    if let Some(conn) = &sr.connection {
-                        use std::io::{ErrorKind, Read};
-                        use std::time::Duration;
-                        let mut s = conn.as_ref();
-                        let mut buf = vec![0u8; len];
-                        let mut read = 0usize;
-                        // Read loop to handle partial reads / WouldBlock
-                        while read < len {
-                            match s.read(&mut buf[read..]) {
-                                Ok(0) => break,
-                                Ok(n) => read += n,
-                                Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                                    std::thread::sleep(Duration::from_millis(1));
-                                    continue;
-                                }
-                                Err(_) => break,
-                            }
-                        }
-                        data = String::from_utf8_lossy(&buf[..read]).to_string();
-                    }
-                }
-                // If no Content-Length, attempt to read until socket would block once
-                if len == 0 {
-                    if let Some(conn) = &sr.connection {
-                        use std::io::{ErrorKind, Read};
-                        let mut s = conn.as_ref();
-                        let mut buf = [0u8; 4096];
-                        match s.read(&mut buf) {
-                            Ok(n) if n > 0 => {
-                                data = String::from_utf8_lossy(&buf[..n]).to_string();
-                            }
-                            Ok(_) => {}
-                            Err(e) if e.kind() == ErrorKind::WouldBlock => {}
-                            Err(_) => {}
-                        }
-                    }
-                }
+                // Use parsed body captured during header parsing; avoids mixing buffered/stream reads
+                let data = sr.body_string_lossy();
 
                 // emit to the specific session if id exists
                 if let Some(id) = sr.param("id") {

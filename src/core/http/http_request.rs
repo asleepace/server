@@ -9,7 +9,7 @@ use crate::core::ServerEvent;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Error, ErrorKind, Result};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Result};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::ops::Deref;
@@ -40,6 +40,7 @@ pub struct HttpRequest {
     pub response: HttpResponse,
     pub connection: Option<Arc<TcpStream>>,
     pub data: Vec<String>,
+    pub body: Vec<u8>,
     pub params: Option<std::collections::HashMap<String, String>>,
     pub query: Option<std::collections::HashMap<String, String>>,
     pub response_state: ResponseState,
@@ -51,11 +52,11 @@ impl HttpRequest {
         and read the incoming data from the stream.
     */
     pub fn new(stream: Arc<TcpStream>) -> Self {
-        let data = match HttpRequest::read_stream_data(&stream) {
-            Ok(data) => data,
+        let (data, body) = match HttpRequest::read_stream_data(&stream) {
+            Ok(tuple) => tuple,
             Err(error) => {
                 println!("[http_request] could not read stream: {:?}", error);
-                Vec::new()
+                (Vec::new(), Vec::new())
             }
         };
         let headers = match HttpHeaders::from(&data) {
@@ -72,6 +73,7 @@ impl HttpRequest {
             connection: Some(stream),
             headers,
             data,
+            body,
             response_state: ResponseState::NotHandled,
             params: None,
             query: None,
@@ -101,6 +103,7 @@ impl HttpRequest {
             response: HttpResponse::new(),
             connection: None,
             data: Vec::new(),
+            body: Vec::new(),
             response_state: ResponseState::NotHandled,
             params: None,
             query: None,
@@ -123,6 +126,7 @@ impl HttpRequest {
         HttpRequest {
             uri: self.uri.clone(),
             data: self.data.clone(),
+            body: self.body.clone(),
             headers: self.headers.clone(),
             response: self.response.clone(),
             connection: match &self.connection {
@@ -143,7 +147,7 @@ impl HttpRequest {
         Converts a TcpStream into a byte vector, reads until a CRLF is found.
         or times out after 5 seconds.
     */
-    fn read_stream_data(tcp_stream: &TcpStream) -> Result<Vec<String>> {
+    fn read_stream_data(tcp_stream: &TcpStream) -> Result<(Vec<String>, Vec<u8>)> {
         let mut reader = BufReader::new(tcp_stream);
         let mut header = Vec::new();
         loop {
@@ -173,7 +177,26 @@ impl HttpRequest {
             }
         }
 
-        Ok(header)
+        // Try to read request body if Content-Length is present
+        let mut content_length: usize = 0;
+        for line in &header {
+            if let Some((name, value)) = HttpHeaders::parse_header(line) {
+                if name.eq_ignore_ascii_case("Content-Length") {
+                    if let Ok(n) = value.parse::<usize>() {
+                        content_length = n;
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut body = Vec::new();
+        if content_length > 0 {
+            body.resize(content_length, 0);
+            reader.read_exact(&mut body)?;
+        }
+
+        Ok((header, body))
     }
 
     pub fn set_parser_limits(max_line: usize, max_headers: usize, max_body: usize) {
@@ -265,6 +288,18 @@ impl HttpRequest {
 
     pub fn query_param(&self, key: &str) -> Option<&String> {
         self.query.as_ref()?.get(key)
+    }
+
+    pub fn body_len(&self) -> usize {
+        self.body.len()
+    }
+
+    pub fn body_bytes(&self) -> &[u8] {
+        &self.body
+    }
+
+    pub fn body_string_lossy(&self) -> String {
+        String::from_utf8_lossy(&self.body).to_string()
     }
 
     /// Returns true if the current response has been set up as an SSE stream

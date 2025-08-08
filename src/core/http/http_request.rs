@@ -22,9 +22,9 @@ use std::sync::Arc;
 
 */
 const CRLF: &str = "\r\n";
-const MAX_REQUEST_LINE: usize = 8 * 1024; // 8 KiB
-const MAX_HEADERS: usize = 64;
-const MAX_BODY: usize = 2 * 1024 * 1024; // 2 MiB (not fully used yet)
+static mut MAX_REQUEST_LINE: usize = 8 * 1024; // 8 KiB
+static mut MAX_HEADERS: usize = 64;
+static mut MAX_BODY: usize = 2 * 1024 * 1024; // 2 MiB (cap)
 
 #[derive(Debug, Clone)]
 pub enum ResponseState {
@@ -41,6 +41,7 @@ pub struct HttpRequest {
     pub connection: Option<Arc<TcpStream>>,
     pub data: Vec<String>,
     pub params: Option<std::collections::HashMap<String, String>>,
+    pub query: Option<std::collections::HashMap<String, String>>,
     pub response_state: ResponseState,
 }
 
@@ -66,15 +67,28 @@ impl HttpRequest {
 
         println!("[http_request] new request: {:}", uri);
 
-        HttpRequest {
+        let mut req = HttpRequest {
             response: HttpResponse::new(),
             connection: Some(stream),
             headers,
             data,
             response_state: ResponseState::NotHandled,
             params: None,
+            query: None,
             uri,
+        };
+        if let Some(qidx) = req.uri.find('?') {
+            let qs = &req.uri[qidx + 1..];
+            let mut map = std::collections::HashMap::new();
+            for pair in qs.split('&') {
+                let mut it = pair.splitn(2, '=');
+                if let (Some(k), Some(v)) = (it.next(), it.next()) {
+                    map.insert(k.to_string(), v.to_string());
+                }
+            }
+            req.query = Some(map);
         }
+        req
     }
 
     /**
@@ -89,6 +103,7 @@ impl HttpRequest {
             data: Vec::new(),
             response_state: ResponseState::NotHandled,
             params: None,
+            query: None,
         }
     }
 
@@ -120,6 +135,7 @@ impl HttpRequest {
                 ResponseState::Error(msg) => ResponseState::Error(msg.clone()),
             },
             params: self.params.clone(),
+            query: self.query.clone(),
         }
     }
 
@@ -138,13 +154,13 @@ impl HttpRequest {
                         break;
                     } else {
                         // Enforce limits
-                        if header.is_empty() && data.len() > MAX_REQUEST_LINE {
+                        if header.is_empty() && data.len() > unsafe { MAX_REQUEST_LINE } {
                             return Err(Error::new(
                                 ErrorKind::InvalidInput,
                                 "request line too long",
                             ));
                         }
-                        if header.len() >= MAX_HEADERS {
+                        if header.len() >= unsafe { MAX_HEADERS } {
                             return Err(Error::new(ErrorKind::InvalidInput, "too many headers"));
                         }
                         header.push(data);
@@ -158,6 +174,14 @@ impl HttpRequest {
         }
 
         Ok(header)
+    }
+
+    pub fn set_parser_limits(max_line: usize, max_headers: usize, max_body: usize) {
+        unsafe {
+            MAX_REQUEST_LINE = max_line;
+            MAX_HEADERS = max_headers;
+            MAX_BODY = max_body;
+        }
     }
 
     pub fn info(&self) -> String {
@@ -224,7 +248,11 @@ impl HttpRequest {
     }
 
     pub fn url(&self) -> String {
-        self.headers.uri_string()
+        let raw = self.headers.uri_string();
+        match raw.find('?') {
+            Some(idx) => raw[..idx].to_string(),
+            None => raw,
+        }
     }
 
     pub fn set_params(&mut self, params: std::collections::HashMap<String, String>) {
@@ -233,6 +261,10 @@ impl HttpRequest {
 
     pub fn param(&self, key: &str) -> Option<&String> {
         self.params.as_ref()?.get(key)
+    }
+
+    pub fn query_param(&self, key: &str) -> Option<&String> {
+        self.query.as_ref()?.get(key)
     }
 
     /// Returns true if the current response has been set up as an SSE stream
@@ -353,6 +385,52 @@ impl HttpRequest {
                 Ok(true)
             }
         }
+    }
+
+    /// Convenience: send a complete text response with content-type and status.
+    pub fn send_text(
+        &mut self,
+        status: HttpStatus,
+        content_type: &str,
+        body: &str,
+    ) -> Result<Flag> {
+        let mut response = HttpResponse::new();
+        response.set_status(status);
+        response.set_body(body.as_bytes().to_vec(), content_type);
+        let stream_ref = self
+            .connection
+            .as_ref()
+            .ok_or(ServerError::error("failed to get tcp stream"))?;
+        {
+            let mut stream = stream_ref.as_ref();
+            let bytes = response.prepare();
+            stream.write_all(&bytes)?;
+            stream.flush()?;
+        }
+        Ok(Flag::DynamicRoute)
+    }
+
+    /// Convenience: send raw bytes with content-type and status.
+    pub fn send_bytes(
+        &mut self,
+        status: HttpStatus,
+        content_type: &str,
+        body: &[u8],
+    ) -> Result<Flag> {
+        let mut response = HttpResponse::new();
+        response.set_status(status);
+        response.set_body(body.to_vec(), content_type);
+        let stream_ref = self
+            .connection
+            .as_ref()
+            .ok_or(ServerError::error("failed to get tcp stream"))?;
+        {
+            let mut stream = stream_ref.as_ref();
+            let bytes = response.prepare();
+            stream.write_all(&bytes)?;
+            stream.flush()?;
+        }
+        Ok(Flag::DynamicRoute)
     }
 
     /**

@@ -17,7 +17,7 @@ use std::collections::VecDeque;
 use std::fmt::format;
 use std::io::{BufWriter, Error, ErrorKind, Result, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Condvar;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -42,6 +42,7 @@ pub struct Server {
     routes: Routes,
     connections: HttpConnections,
     middlewares: SharedState<MiddlewareService>,
+    running: Arc<AtomicBool>,
 }
 
 impl Server {
@@ -57,6 +58,7 @@ impl Server {
             middlewares: SharedState::new(MiddlewareService::new()),
             stdout: SharedState::new(Stdout::new("./src/data/events.csv", "development")),
             routes: Routes::new(),
+            running: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -73,6 +75,22 @@ impl Server {
             Some(host) => host,
             None => "localhost".to_string(),
         };
+        // Optional CLI overrides for environment-based config
+        if let Some(public_dir) = cli::args::parse_as_str(&argv, "--public-dir") {
+            if !public_dir.is_empty() {
+                std::env::set_var("PUBLIC_DIR", public_dir);
+            }
+        }
+        if let Some(secs) = cli::args::parse_as_float(&argv, "--sse-heartbeat-secs") {
+            if secs > 0.0 && secs < 600.0 {
+                std::env::set_var("SSE_HEARTBEAT_SECS", format!("{}", secs));
+            }
+        }
+        if let Some(size) = cli::args::parse_as_num(&argv, "--session-history-size") {
+            if size > 0 && size <= 10_000 {
+                std::env::set_var("SESSION_HISTORY_SIZE", format!("{}", size));
+            }
+        }
         Server::bind(&host, port)
     }
 
@@ -100,6 +118,8 @@ impl Server {
         let domain = config.address();
         let connection = TcpListener::bind(&domain)?;
         let server = Server::new(connection, config);
+        // register sessions map pointer for global session events
+        server.connections.register_global();
         server.event("server_connected", domain);
         Ok(server)
     }
@@ -110,6 +130,7 @@ impl Server {
         self.middlewares.write(|mid| mid.clear());
         self.connections.close_all();
         println!("[server] shutting down...");
+        self.running.store(false, Ordering::SeqCst);
     }
 
     /// Call this to register the routes as the final middleware, should be called after
@@ -188,6 +209,23 @@ impl Server {
             _ => worker_count * 1024,
         };
 
+        // Parser limits (optional flags)
+        let max_line =
+            cli::args::parse_with_bounds(&argv, "--max-request-line", 8 * 1024, 1024, 64 * 1024);
+        let max_headers = cli::args::parse_with_bounds(&argv, "--max-headers", 64, 8, 256);
+        let max_body = cli::args::parse_with_bounds(
+            &argv,
+            "--max-body-bytes",
+            2 * 1024 * 1024,
+            1024,
+            64 * 1024 * 1024,
+        );
+        crate::core::http::http_request::HttpRequest::set_parser_limits(
+            max_line,
+            max_headers,
+            max_body,
+        );
+
         // Use a reusable bounded worker pool abstraction
         let capacity = queue_capacity;
         let pool = BoundedWorkerPool::<TcpStream>::new(worker_count, capacity, Arc::new(|_| {}));
@@ -204,10 +242,17 @@ impl Server {
                 });
             }
 
-            for incoming in self.tcp_listener.incoming() {
-                match incoming {
-                    Err(error) => self.error("err_incoming_stream", error.to_string()),
-                    Ok(stream) => pool.submit(stream),
+            let _ = self.tcp_listener.set_nonblocking(true);
+            while self.running.load(Ordering::SeqCst) {
+                match self.tcp_listener.accept() {
+                    Ok((stream, _)) => pool.submit(stream),
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(e) => {
+                        self.error("err_incoming_stream", e.to_string());
+                        thread::sleep(Duration::from_millis(25));
+                    }
                 }
             }
         });
@@ -250,7 +295,12 @@ impl Server {
 
             // 3. if request started an SSE stream, handoff to SSE manager and return
             if request.is_event_stream() {
-                self.handoff_sse(request);
+                // Route to session if present
+                if let Some(sid) = request.query_param("s") {
+                    self.connections.add_session_stream(sid.clone(), request);
+                } else {
+                    self.handoff_sse(request);
+                }
                 break;
             }
 

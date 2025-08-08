@@ -77,6 +77,11 @@ impl HttpResponse {
     /// 3. Return 404.html if both fail
     /// Includes comprehensive security validation to prevent path traversal attacks.
     pub fn resolve_file_path(url: &str) -> Result<(PathBuf, String), Error> {
+        // Strip query string if present
+        let url = match url.find('?') {
+            Some(idx) => &url[..idx],
+            None => url,
+        };
         // Security: Sanitize the input path
         let clean_path = match sanitize_path(url) {
             Ok(path) => path,

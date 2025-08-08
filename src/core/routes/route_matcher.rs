@@ -42,12 +42,24 @@ impl RouteMatcher {
 
     /// Register a route pattern with its handler key
     pub fn register(&mut self, pattern: &str, handler_key: &str) {
-        self.patterns.push((pattern.to_string(), handler_key.to_string()));
+        self.patterns
+            .push((pattern.to_string(), handler_key.to_string()));
+    }
+
+    /// Normalize a path by trimming a single trailing slash (except for root)
+    fn normalize_path(path: &str) -> &str {
+        if path.len() > 1 && path.ends_with('/') {
+            &path[..path.len() - 1]
+        } else {
+            path
+        }
     }
 
     /// Match a request path against registered patterns
     pub fn match_path(&self, request_path: &str) -> RouteMatch {
+        let request_path = Self::normalize_path(request_path);
         for (pattern, handler_key) in &self.patterns {
+            let pattern = Self::normalize_path(pattern);
             if let Some(parameters) = Self::match_pattern(pattern, request_path) {
                 let mut route_match = RouteMatch::new(handler_key.clone());
                 route_match.parameters = parameters;
@@ -60,7 +72,8 @@ impl RouteMatcher {
     /// Match a single pattern against a request path
     fn match_pattern(pattern: &str, request_path: &str) -> Option<HashMap<String, String>> {
         let pattern_segments: Vec<&str> = pattern.split('/').filter(|s| !s.is_empty()).collect();
-        let request_segments: Vec<&str> = request_path.split('/').filter(|s| !s.is_empty()).collect();
+        let request_segments: Vec<&str> =
+            request_path.split('/').filter(|s| !s.is_empty()).collect();
 
         if pattern_segments.len() != request_segments.len() {
             return None;
@@ -85,7 +98,7 @@ impl RouteMatcher {
     /// Check if a pattern is valid
     pub fn is_valid_pattern(pattern: &str) -> bool {
         let segments: Vec<&str> = pattern.split('/').filter(|s| !s.is_empty()).collect();
-        
+
         for segment in segments {
             if segment.starts_with('[') && segment.ends_with(']') {
                 // Dynamic parameter - check it's not empty
@@ -145,9 +158,11 @@ mod tests {
     #[test]
     fn test_pattern_validation() {
         assert!(RouteMatcher::is_valid_pattern("/users/[userId]"));
-        assert!(RouteMatcher::is_valid_pattern("/posts/[postId]/comments/[commentId]"));
+        assert!(RouteMatcher::is_valid_pattern(
+            "/posts/[postId]/comments/[commentId]"
+        ));
         assert!(RouteMatcher::is_valid_pattern("/static/path"));
-        
+
         assert!(!RouteMatcher::is_valid_pattern("/users/[]")); // Empty parameter
         assert!(!RouteMatcher::is_valid_pattern("/users/[userId")); // Unclosed bracket
         assert!(!RouteMatcher::is_valid_pattern("/users/[userId]/[postId")); // Unclosed bracket

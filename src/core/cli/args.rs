@@ -87,7 +87,18 @@ pub fn parse_as_num(args: &HashMap<String, Args>, token: &str) -> Option<i64> {
     }
 }
 
-// parse_as_float defined above
+pub fn parse_as_float(args: &HashMap<String, Args>, token: &str) -> Option<f64> {
+    match args.get(token) {
+        Some(Args::Decimal(value)) => Some(*value),
+        Some(Args::Number(integer)) => Some(*integer as f64),
+        Some(Args::Text(text)) => text.parse::<f64>().ok(),
+        Some(Args::Bool(bool)) => match bool {
+            true => Some(1.0),
+            false => Some(0.0),
+        },
+        _ => None,
+    }
+}
 
 pub fn parse_as_str(args: &HashMap<String, Args>, token: &str) -> Option<String> {
     match args.get(token) {
@@ -102,5 +113,25 @@ pub fn is_set(args: &HashMap<String, Args>, token: &str) -> bool {
     match args.get(token) {
         Some(Args::Bool(true)) => true,
         _ => false,
+    }
+}
+
+// Convenience: parse caps with defaults and floor/ceil bounds
+pub fn parse_with_bounds(
+    args: &HashMap<String, Args>,
+    token: &str,
+    default: usize,
+    min: usize,
+    max: usize,
+) -> usize {
+    match args.get(token) {
+        Some(Args::Number(v)) if *v > 0 => (*v as usize).clamp(min, max),
+        Some(Args::Decimal(f)) if *f > 0.0 => (*f as usize).clamp(min, max),
+        Some(Args::Text(t)) => t
+            .parse::<usize>()
+            .ok()
+            .map(|n| n.clamp(min, max))
+            .unwrap_or(default),
+        _ => default,
     }
 }

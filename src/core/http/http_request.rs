@@ -192,6 +192,9 @@ impl HttpRequest {
 
         let mut body = Vec::new();
         if content_length > 0 {
+            if content_length > unsafe { MAX_BODY } {
+                return Err(Error::new(ErrorKind::InvalidInput, "body too large"));
+            }
             body.resize(content_length, 0);
             reader.read_exact(&mut body)?;
         }

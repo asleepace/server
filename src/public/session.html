@@ -1,99 +1,171 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <title>Server</title>
-        <link rel="icon" type="image/x-icon" href="/favicon.png" />
-        <link rel="stylesheet" type="text/css" href="/index.css" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta
-            name="description"
-            content="Live server event stream to view requests, errors and more!"
-        />
-        <meta name="keywords" content="server, rust, web, http, routes" />
-        <meta name="author" content="Colin Teahan" />
-        <meta name="robots" content="index, follow" />
-        <meta name="revisit-after" content="7 days" />
-        <meta name="language" content="English" />
-        <meta name="generator" content="ServerOS" />
-        <meta name="distribution" content="global" />
-        <meta name="rating" content="general" />
-        <meta name="theme-color" content="#1d1d1d" />
-        <style>
-            #event-stream {
-                flex: 1;
-                overflow-y: auto;
-                box-sizing: border-box;
-                color: rgba(255, 255, 255, 0.8);
-            }
 
-            #event-stream,
-            #event-stream pre,
-            #event-stream code,
-            #event-stream p {
-                color: rgba(255, 255, 255, 0.8);
-                font-family: monospace;
-                white-space: pre-wrap;
-                line-height: 24px;
-                font-size: 14px;
-                border: none;
-                margin: 0;
-                padding: 0;
-            }
+<head>
+    <title>Server</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.png" />
+    <link rel="stylesheet" type="text/css" href="/index.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Live server event stream to view requests, errors and more!" />
+    <meta name="keywords" content="server, rust, web, http, routes" />
+    <meta name="author" content="Colin Teahan" />
+    <meta name="robots" content="index, follow" />
+    <meta name="revisit-after" content="7 days" />
+    <meta name="language" content="English" />
+    <meta name="generator" content="ServerOS" />
+    <meta name="distribution" content="global" />
+    <meta name="rating" content="general" />
+    <meta name="theme-color" content="#1d1d1d" />
+    <style>
+        #event-stream {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow-y: auto;
+            box-sizing: border-box;
+            color: rgba(255, 255, 255, 0.8);
+            height: 100%;
+        }
 
-            #event-container {
-                box-sizing: border-box;
-                background-color: #1d1d1d;
-                flex-direction: row;
-                overflow-y: auto;
-                display: flex;
-                width: 100vw;
-                height: 100%;
-                flex: 1;
-                padding: 1rem;
-                padding-top: 76px;
-                padding-right: 4px;
-                padding-bottom: 4px;
-                margin: 0;
-            }
+        #event-stream,
+        #event-stream pre,
+        #event-stream code,
+        #event-stream p {
+            color: rgba(255, 255, 255, 0.8);
+            font-family: monospace;
+            white-space: pre-wrap;
+            line-height: 24px;
+            font-size: 14px;
+            border: none;
+            margin: 0;
+            padding: 0;
+        }
 
-            .scroll-container {
-                display: flex;
-                flex-direction: column;
-                height: 100vh;
-                margin: 0;
-                padding: 0;
-            }
+        #event-container {
+            box-sizing: border-box;
+            background-color: #1d1d1d;
+            flex-direction: row;
+            overflow-y: auto;
+            display: flex;
+            width: 100vw;
+            height: 100%;
+            flex: 1;
+            padding: 1rem;
+            padding-top: 76px;
+            padding-right: 4px;
+            padding-bottom: 4px;
+            margin: 0;
+        }
 
-            html,
-            body {
-                margin: 0;
-                padding: 0;
-                height: 100%;
-                background: none;
-                background-color: #1d1d1d;
-                overflow: hidden;
-                scroll-behavior: smooth;
-                border: none;
-                line-height: 18px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="scroll-container">
-            <nav class="shadow">
-                <h2 id="title">Data Stream</h2>
-                <a id="site-logo" href="/"><h3>ConsoleDump</h3></a>
-            </nav>
+        .scroll-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            flex: 1;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            max-width: 100vw;
+            background: none;
+            background-color: #1d1d1d;
+            overflow: hidden;
+            scroll-behavior: smooth;
+            border: none;
+            line-height: 18px;
+        }
+
+        main {
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: row;
+            min-height: 100vh;
+            flex: 1;
+        }
+
+        aside {
+            color: #1d1d1d;
+            position: relative;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            max-width: 50em;
+            background-color: bisque;
+            overflow-x: hidden;
+            white-space: prewrap;
+            text-wrap: wrap;
+            z-index: 100;
+        }
+
+        aside p {
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="shadow">
+        <a id="site-logo" href="/">
+            <h3>ConsoleDump</h3>
+        </a>
+    </nav>
+    <div class="scroll-container">
+        <main>
             <pre id="event-container">
-                <code id="event-stream"></code>
-            </pre>
-        </div>
-    </body>
-    <script src="/scripts/session.js" defer></script>
-    <script>
-        void function initialize() {
-            const [_, sessionKey] = window.location.pathname.split('s/')
-            document.getElementById('title')?.innerText = `Data Stream #${sessionKey}`
-        }()
-    </script>
+                    <code id="event-stream"></code>
+                </pre>
+            <aside>
+                <h2 id="session-title">Data Stream</h2>
+                <h3 style="margin-top:0">Quick start</h3>
+                <p>Send any HTTP POST to this session. Payload will be forwarded to the stream.</p>
+                <pre
+                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="curl-snippet"></code></pre>
+                <h4>JavaScript (fetch)</h4>
+                <pre
+                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="js-snippet"></code></pre>
+                <h4>TypeScript (fetch)</h4>
+                <pre
+                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="node-snippet"></code></pre>
+                <h4>Python (requests)</h4>
+                <pre
+                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="py-snippet"></code></pre>
+                <small>Tip: Large payloads supported. For now, base64 event emitted as <code>base64</code> SSE.
+                    Client decodes automatically in this view.</small>
+            </aside>
+        </main>
+    </div>
+</body>
+<script src="/scripts/session.js" defer></script>
+<script>
+    void function initialize() {
+        const [_, sessionKey] = window.location.pathname.split('s/')
+        const sessionTitle = document.getElementById('session-title')
+
+        if (sessionTitle) {
+            sessionTitle.innerHTML = `Data Stream ID: #<a href="/s/${sessionKey}">${sessionKey}</a>`
+        } else {
+            console.warn('[session.html] failed to find session title element!')
+        }
+
+        const base = `${location.protocol}//${location.host}`
+        const curl = `curl -X POST ${base}/s/${sessionKey} \\\n+  -H 'Content-Type: text/plain' \\\n+  --data-binary 'hello world'`
+        const js = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'text/plain' },\n  body: 'hello world'\n})`
+        const ts = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ msg: 'hello' })\n})`
+        const node = `import axios from 'axios'\nawait axios.post('${base}/s/${sessionKey}', 'hello world', { headers: { 'Content-Type': 'text/plain' } })`
+        const py = `import requests\nrequests.post('${base}/s/${sessionKey}', data='hello world', headers={'Content-Type':'text/plain'})`
+
+        document.getElementById('curl-snippet').textContent = curl
+        document.getElementById('js-snippet').textContent = js
+        document.getElementById('ts-snippet').textContent = ts
+        document.getElementById('node-snippet').textContent = node
+        document.getElementById('py-snippet').textContent = py
+    }()
+</script>
+
 </html>

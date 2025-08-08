@@ -20,20 +20,23 @@ class CDNav extends HTMLElement {
       .group > *:last-child { border-right:none; }
       .group > *:hover { background: var(--background-2); }
       .ascii { font-family: var(--font-mono); color: var(--tint-color); }
+      .navbtns > * {
+         padding-horizontal: 8px;
+      }
     `;
         this.shadowRoot.innerHTML = `
       <style>${style}</style>
       <nav>
         <div class="left">
-          <span class="ascii" style="color: --tint-color;">::</span>
+          <span class="ascii" style="color: var(--tint-color);">::</span>
           <a class="brand" href="/">${title}</a>
         </div>
         <div class="right">
-          <div class="group">
-            <a href="/info">info</a>
-            <a href="/log">logs</a>
+          <div class="group navbtns">
+            <button id="home">&lArr;home&rArr;</button>
+            <button id="create">new session</button>
             ${showSidebarToggle ? '<button id="sidebar" title="toggle sidebar">sidebar</button>' : ''}
-            <button id="theme" title="toggle theme">theme</button>
+            <button id="theme" title="toggle theme"></button>
           </div>
         </div>
       </nav>

@@ -152,6 +152,7 @@ const sharedStyles = (function () {
  * getting state, setting state, and shared styling.
  */
 class BaseElement extends HTMLElement {
+    isMounted = false
     constructor() {
         super()
         this.attachShadow({ mode: 'open' })
@@ -161,11 +162,18 @@ class BaseElement extends HTMLElement {
         return `<slot />`
     }
     connectedCallback() {
+        if (!this.isConnected) return
         this.shadowRoot.innerHTML = this.render()
     }
     attributeChangedCallback() {
         this.shadowRoot.innerHTML = this.render()
     }
+
+    onMounted(callbackFn) {
+        if (this.isMounted) return
+        callbackFn.call(this)
+    }
+
     get state() {
         return this.getAttributeNames().reduce((state, attrName) => {
             state[attrName] = this.getAttribute(attrName)

@@ -1,4 +1,5 @@
 use crate::core::http::http_headers::HttpHeaders;
+use crate::core::security::{sanitize_path, validate_path_bounds};
 use crate::core::util::get_mime_type;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
@@ -7,6 +8,7 @@ use std::io::Error;
 use std::io::{BufRead, BufReader};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
 
 use super::http_headers::HttpVersion;
 use super::HttpStatus;
@@ -64,13 +66,92 @@ impl HttpResponse {
         Ok(response)
     }
 
+    /// Securely resolves a file path with fallback logic:
+    /// 1. Try {path}.html if path doesn't end with .html
+    /// 2. Try {path}/index.html if primary fails
+    /// 3. Return 404.html if both fail
+    /// Includes comprehensive security validation to prevent path traversal attacks.
+    pub fn resolve_file_path(url: &str) -> Result<(PathBuf, String), Error> {
+        // Security: Sanitize the input path
+        let clean_path = match sanitize_path(url) {
+            Ok(path) => path,
+            Err(_security_err) => {
+                eprintln!("[security] Blocked request for: {}", url);
+                return Self::get_404_fallback();
+            }
+        };
+
+        let base_dir = Path::new("./src/public");
+        
+        // Handle root path
+        if clean_path.is_empty() {
+            let index_path = base_dir.join("index.html");
+            if let Err(_security_err) = validate_path_bounds(&index_path, base_dir) {
+                eprintln!("[security] Path bounds violation for root path");
+                return Self::get_404_fallback();
+            }
+            return Ok((index_path, get_mime_type("index.html")));
+        }
+
+        // Try different resolution strategies in order
+        let candidates = Self::generate_path_candidates(&clean_path);
+        
+        for candidate in candidates {
+            let full_path = base_dir.join(&candidate);
+            
+            // Security: Validate path bounds
+            if let Err(_) = validate_path_bounds(&full_path, base_dir) {
+                continue; // Skip this candidate, try next
+            }
+            
+            // Check if file exists
+            if full_path.exists() && full_path.is_file() {
+                println!("[http_request] resolved: {:?}", full_path);
+                let mime = get_mime_type(&candidate);
+                return Ok((full_path, mime));
+            }
+        }
+
+        // All candidates failed, return 404.html
+        Self::get_404_fallback()
+    }
+
+    /// Generates candidate paths to try for file resolution
+    fn generate_path_candidates(clean_path: &str) -> Vec<String> {
+        let mut candidates = Vec::new();
+        
+        // Strategy 1: Try exact path first
+        candidates.push(clean_path.to_string());
+        
+        // Strategy 2: If path doesn't end with .html, try adding .html
+        if !clean_path.ends_with(".html") && !clean_path.contains('.') {
+            candidates.push(format!("{}.html", clean_path));
+        }
+        
+        // Strategy 3: Try as directory with index.html
+        candidates.push(format!("{}/index.html", clean_path));
+        
+        candidates
+    }
+
+    /// Returns 404.html as fallback, or creates a basic 404 response if 404.html doesn't exist
+    fn get_404_fallback() -> Result<(PathBuf, String), Error> {
+        let fallback_path = Path::new("./src/public/404.html");
+        if fallback_path.exists() {
+            Ok((fallback_path.to_path_buf(), get_mime_type("404.html")))
+        } else {
+            // Create a basic 404 response if 404.html doesn't exist
+            Err(Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found and no 404.html available"
+            ))
+        }
+    }
+
     pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
-        let path = url.trim_matches('/');
-        let file_path = format!("./src/public/{}", path);
-        println!("[http_request] fetch {:?}", file_path);
-        let data = fs::read(file_path)?;
-        let mime = get_mime_type(url);
-        Ok((data, mime))
+        let (file_path, mime_type) = Self::resolve_file_path(url)?;
+        let data = fs::read(&file_path)?;
+        Ok((data, mime_type))
     }
 
     pub fn set_body(&mut self, body: Vec<u8>, mime: &str) {

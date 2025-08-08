@@ -16,6 +16,8 @@ fn main() -> Result<()> {
 
     let mut server = Server::instance()?;
 
+    println!("[main] server started!");
+
     // MARK: Middleware
 
     server.middleware(|req, next| {
@@ -50,26 +52,38 @@ fn main() -> Result<()> {
 
     // MARK: Routes
 
-    // server.route("/", |sr| {
-    //     println!("[main] serving route: /");
-    //     sr.send_file("index.html")
-    // });
+    server.route("/", |sr| {
+        println!("[main] serving route: /");
+        match sr.send_file("index.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
 
-    // server.route("/log", |sr| {
-    //     println!("[main] serving route: events.html");
-    //     sr.send_file("log.html")
-    // });
+    server.route("/log", |sr| {
+        println!("[main] serving route: /log");
+        match sr.send_file("log.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
 
-    // // special endpoint for event-streams
-    // server.route("/events", |sr| {
-    //     println!("[main] serving route: events.html");
-    //     sr.event_souce()
-    // });
+    // special endpoint for event-streams
+    server.route("/events", |sr| {
+        println!("[main] serving route: /events");
+        match sr.event_souce() {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
 
-    // server.route("/info", |sr| {
-    //     println!("[main] serving route: info.html");
-    //     sr.send_file("info.html")
-    // });
+    server.route("/info", |sr| {
+        println!("[main] serving route: /info");
+        match sr.send_file("info.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
 
     server.start();
     Ok(())

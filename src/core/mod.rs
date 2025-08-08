@@ -8,6 +8,7 @@ pub mod http;
 pub mod middleware;
 pub mod request;
 pub mod routes;
+pub mod security;
 pub mod server;
 pub mod state;
 pub mod stdout;

@@ -110,37 +110,48 @@
 </head>
 
 <body>
-    <nav class="shadow">
-        <a id="site-logo" href="/">
-            <h3>ConsoleDump</h3>
-        </a>
-    </nav>
+    <cd-nav title="ConsoleDump" sidebar-toggle></cd-nav>
     <div class="scroll-container">
-        <main>
-            <pre id="event-container">
-                    <code id="event-stream"></code>
-                </pre>
-            <aside>
+        <main id="layout" style="--sidebar: 420px;">
+            <pre id="event-container" style="width: calc(100% - var(--sidebar));">
+                <code id="event-stream"></code>
+            </pre>
+            <aside id="sidebar" data-theme="light"
+                style="width: var(--sidebar); min-width: 280px; max-width: 65vw; resize: horizontal; overflow:auto; position: relative;">
+                <div id="drag-hint"
+                    style="position:absolute; left:0; top:0; bottom:0; width:6px; cursor: ew-resize; background: var(--border); opacity:0.3">
+                </div>
                 <h2 id="session-title">Data Stream</h2>
-                <h3 style="margin-top:0">Quick start</h3>
-                <p>Send any HTTP POST to this session. Payload will be forwarded to the stream.</p>
-                <pre
-                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="curl-snippet"></code></pre>
-                <h4>JavaScript (fetch)</h4>
-                <pre
-                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="js-snippet"></code></pre>
-                <h4>TypeScript (fetch)</h4>
-                <pre
-                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="node-snippet"></code></pre>
-                <h4>Python (requests)</h4>
-                <pre
-                    style="background:#111; padding:8px; border-radius:6px; white-space:pre-wrap"><code id="py-snippet"></code></pre>
-                <small>Tip: Large payloads supported. For now, base64 event emitted as <code>base64</code> SSE.
-                    Client decodes automatically in this view.</small>
+                <cd-tabs tabs="instructions,settings,hooks" active="instructions">
+                    <section slot="instructions">
+                        <h3 style="margin-top:0">Quick start</h3>
+                        <p>Send any HTTP POST to this session. Payload will be forwarded to the stream.</p>
+                        <cd-snippet lang="bash" id="curl-snippet"></cd-snippet>
+                        <h4>JavaScript (fetch)</h4>
+                        <cd-snippet lang="js" id="js-snippet"></cd-snippet>
+                        <h4>TypeScript (fetch)</h4>
+                        <cd-snippet lang="ts" id="ts-snippet"></cd-snippet>
+                        <h4>Node.js (axios)</h4>
+                        <cd-snippet lang="js" id="node-snippet"></cd-snippet>
+                        <h4>Python (requests)</h4>
+                        <cd-snippet lang="py" id="py-snippet"></cd-snippet>
+                        <small>Tip: Large payloads supported. For now, base64 event emitted as <code>base64</code> SSE.
+                            Client decodes automatically in this view.</small>
+                    </section>
+                    <section slot="settings">
+                        <p>Theme, font size, auto-scroll, and retention controls can go here.</p>
+                    </section>
+                    <section slot="hooks">
+                        <p>Add small JS preprocessors to reformat incoming data before display.</p>
+                    </section>
+                </cd-tabs>
             </aside>
         </main>
     </div>
 </body>
+<script src="/components/snippet.js" defer></script>
+<script src="/components/navbar.js" defer></script>
+<script src="/components/tabs.js" defer></script>
 <script src="/scripts/session.js" defer></script>
 <script>
     void function initialize() {
@@ -166,6 +177,68 @@
         document.getElementById('node-snippet').textContent = node
         document.getElementById('py-snippet').textContent = py
     }()
+</script>
+<script>
+    // Toggle sidebar visibility
+    document.addEventListener('cd:toggle-sidebar', () => {
+        const main = document.getElementById('layout');
+        const aside = document.getElementById('sidebar');
+        const open = aside.style.display !== 'none';
+        if (open) {
+            aside.style.display = 'none';
+            main.style.setProperty('--sidebar', '0px');
+            try { localStorage.setItem('sidebar_open', '0'); } catch { }
+        } else {
+            aside.style.display = 'block';
+            const w = localStorage.getItem('sidebar_width') || (aside.style.width || '420px');
+            aside.style.width = w;
+            main.style.setProperty('--sidebar', w);
+            try { localStorage.setItem('sidebar_open', '1'); } catch { }
+        }
+    });
+
+    // Restore sidebar state
+    (function restoreSidebar() {
+        const main = document.getElementById('layout');
+        const aside = document.getElementById('sidebar');
+        try {
+            const w = localStorage.getItem('sidebar_width');
+            const open = localStorage.getItem('sidebar_open');
+            const theme = localStorage.getItem('sidebar_theme');
+            if (w) { aside.style.width = w; main.style.setProperty('--sidebar', w); }
+            if (open === '0') { aside.style.display = 'none'; main.style.setProperty('--sidebar', '0px'); }
+            if (theme) { aside.setAttribute('data-theme', theme); }
+        } catch { }
+    })();
+
+    // Persist width when user resizes
+    (function persistWidth() {
+        const main = document.getElementById('layout');
+        const aside = document.getElementById('sidebar');
+        let raf = 0;
+        const observer = new ResizeObserver(() => {
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                const w = getComputedStyle(aside).width;
+                main.style.setProperty('--sidebar', w);
+                try { localStorage.setItem('sidebar_width', w); } catch { }
+            });
+        });
+        observer.observe(aside);
+    })();
+
+    // Sidebar theme toggle via double-click on drag handle
+    (function sidebarTheme() {
+        const aside = document.getElementById('sidebar');
+        const drag = document.getElementById('drag-hint');
+        function toggle() {
+            const cur = aside.getAttribute('data-theme') || 'light';
+            const nx = cur === 'light' ? 'dark' : 'light';
+            aside.setAttribute('data-theme', nx);
+            try { localStorage.setItem('sidebar_theme', nx); } catch { }
+        }
+        drag.addEventListener('dblclick', toggle);
+    })();
 </script>
 
 </html>

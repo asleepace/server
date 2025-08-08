@@ -57,10 +57,18 @@ function watchEvents(
 
     eventSource.onopen = (event) => {
         console.log("[event] connected!", event);
-        const elem = createRowElement({
-            text: "connected!",
-            style: "color: green",
-        });
+        const ascii = [
+            "      ____                      _          _____                     ",
+            "     / ___|___  _ __ ___  _ __ | | ___    |  ___|__  _ __ _ __  _   _ ",
+            "    | |   / _ \\| '_ ` _ \\| '_ \\| |/ _ \\   | |_ / _ \\| '__| '_ \\| | | |",
+            "    | |__| (_) | | | | | | |_) | |  __/   |  _| (_) | |  | | | | |_| |",
+            "     \\____\\___/|_| |_| |_| .__/|_|\\___|   |_|  \\___/|_|  |_| |_|\\__, |",
+            "                         |_|                                      |___/ ",
+            "",
+            " :: welcome to ConsoleDump | streaming session ::",
+            " :: tip: send POSTs to this URL to see them live ::",
+        ].join("\n");
+        const elem = createRowElement({ text: ascii, style: "color:#7efc7a" });
         insertChildAndScroll(elem);
     };
 

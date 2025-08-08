@@ -12,7 +12,7 @@ const AsciiSymbols = {
     '✓': '&#10003;',
     '✗': '&#10007;',
     '✘': '&#10008;',
-    '❘': '&#10072',
+    '❘': '&#10072;',
     '❙': '&#10073;',
     '❚': '&#10074;',
     '➩': '&#10153;',
@@ -27,43 +27,57 @@ const sharedStyles = (function () {
            --color-text: rgba(255, 255, 255, 0.8);
            --color-tint: #7efc7a;
            --color-bg: #15171a;
+           --color-surface: #15171a;
            --color-border: #3a3d42;
+           --color-shadow: rgba(0,0,0,0.2);
            --text-size: 14px;
            --text-font: monospace;
+           --size-navbar: 50px;
+
+           display: flex;
+           flex-direction: row;
+           width: 100%;
+           height: var(--size-navbar);
         }
 
         nav { 
-            width:100%; 
-            border-bottom:1px solid var(--border); 
-            background: var(--surface); 
-            height: var(--nav-height); 
-            display:flex; 
-            align-items:center; 
-            justify-content:space-between; 
-            padding:0 12px; 
-            box-shadow: 0 2px 6px var(--shadow); 
-            box-sizing:border-box; 
+            width: 100%; 
+            border-bottom: 1px solid var(--color-border); 
+            background: var(--color-surface); 
+            height: var(--size-navbar); 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0 12px; 
+            box-shadow: 0 2px 6px var(--color-shadow); 
+            box-sizing: border-box; 
         }
 
         .nav-title {
             font-weight: bold;
+            color: var(--color-text);
         }
 
         .nav-bttns {
             display: flex;
             flex-direction: row;
-            justify-items: center;
-            align-items-center;
+            justify-content: center;
+            align-items: center;
         }
 
         button {
-            border:none; 
-            border-right:1px solid var(--border); 
-            background:transparent; 
-            padding:6px 10px; color: 
-            var(--green-accent); 
-            font-family: var(--font-mono); 
-            text-decoration:none; 
+            border: none; 
+            border-right: 1px solid var(--color-border); 
+            background: transparent; 
+            padding: 6px 10px; 
+            color: var(--color-tint); 
+            font-family: var(--text-font); 
+            text-decoration: none; 
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: rgba(126, 252, 122, 0.1);
         }
 
         .flex {
@@ -81,7 +95,52 @@ const sharedStyles = (function () {
             flex-direction: row;
         }
 
+        .w-full { width: 100%; }
+        .h-full { height: 100%; }
+        .min-w-full { min-width: 100%; }
+        .min-h-full { min-height: 100%; }
 
+        .px-0 {
+            padding-left: 0px;
+            padding-right: 0px;
+        }
+        .px-1 {
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+        .px-2 {
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+
+        .py-0 {
+            padding-top: 0px;
+            padding-bottom: 0px;
+        }
+        .py-1 {
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+        .py-2 {
+            padding-top: 8px;
+            padding-bottom: 8px;
+        }
+
+        .p-0 {
+            padding: 0px;
+        }
+
+        .p-1 {
+            padding: 4px;
+        }
+
+        .p-2 {
+            padding: 8px;
+        }
+
+        .m-0 {
+            margin: 0px;
+        }
     `
     return styles
 })()
@@ -95,21 +154,22 @@ const sharedStyles = (function () {
 class BaseElement extends HTMLElement {
     constructor() {
         super()
-        this.shadowRoot({ mode: 'open' })
-        this.shadowRoot.appendChild(sharedStyles)
+        this.attachShadow({ mode: 'open' })
+        this.shadowRoot.appendChild(sharedStyles.cloneNode(true))
     }
     render() {
         return `<slot />`
     }
     connectedCallback() {
-        this.render()
+        this.shadowRoot.innerHTML = this.render()
     }
     attributeChangedCallback() {
-        this.render()
+        this.shadowRoot.innerHTML = this.render()
     }
     get state() {
         return this.getAttributeNames().reduce((state, attrName) => {
             state[attrName] = this.getAttribute(attrName)
+            return state
         }, {})
     }
     set state(partialState) {
@@ -118,8 +178,6 @@ class BaseElement extends HTMLElement {
         })
     }
 }
-
-
 
 /**
  * Register custom elements on the window the specified name and render function,
@@ -131,15 +189,59 @@ class BaseElement extends HTMLElement {
 function $define(name, renderFn) {
     if (typeof window === 'undefined') return
     if (window.customElements.get(name)) return
+
     const Elem = class extends BaseElement {
         constructor() {
             super()
         }
         render() {
             console.log(`[@component:${name}] rendering:`, this.state)
-            return renderFn.call(this, this.state)
+            const html = renderFn.call(this, this.state)
+
+            // Set up event listeners after rendering
+            setTimeout(() => {
+                this.setupEventListeners()
+            }, 0)
+
+            return html
+        }
+
+        setupEventListeners() {
+            // Handle navbar-specific event listeners
+            if (name === 'cd-navbar') {
+                this.setupNavbarListeners()
+            }
+        }
+
+        setupNavbarListeners() {
+            const themeBtn = this.shadowRoot.querySelector('#theme')
+            const sidebarBtn = this.shadowRoot.querySelector('#sidebar')
+            const cursor = this.shadowRoot.querySelector('#cursor')
+
+            if (themeBtn) {
+                themeBtn.onclick = () => {
+                    const root = document.documentElement;
+                    const dark = root.getAttribute('data-theme') === 'dark';
+                    const newTheme = dark ? 'light' : 'dark'
+                    root.setAttribute('data-theme', newTheme);
+                    $storage.set('theme', newTheme)
+                }
+            }
+
+            if (sidebarBtn) {
+                sidebarBtn.onclick = () => {
+                    this.dispatchEvent($event('cd:toggle-sidebar'))
+                }
+            }
+
+            if (cursor) {
+                setInterval(() => {
+                    cursor.style.opacity = cursor.style.opacity === '0' ? '1' : '0';
+                }, 900);
+            }
         }
     }
+
     console.log(`[@components] registering: "${name}"`)
     window.customElements.define(name, Elem)
 }
@@ -147,25 +249,33 @@ function $define(name, renderFn) {
 /**
  * Simple helper for querying elements on the dom, the callback will only trigger
  * if the element is found. Will return the result of callbackFn(element).
- * @param {*} elem 
- * @param {*} callbackFn 
+ * @param {string} selector 
+ * @param {function} callbackFn 
  * @returns 
  */
 function $select(selector, callbackFn) {
     const result = document.querySelector(selector)
-    if (!result) return console.warn(`[$select] failed to find: "${elem}"`)
-    return callbackFn(elem)
+    if (!result) {
+        console.warn(`[$select] failed to find: "${selector}"`)
+        return null
+    }
+    return callbackFn(result)
 }
 
-function $onclick(selector, onClickFn) {
+function $onclick(selector, callbackFn) {
     $select(selector, item => {
-        item.onClickFn = onClickFn
+        item.onclick = callbackFn
     })
 }
 
 function $try(fn) {
-    try { return [fn(), null] }
-    catch (e) { console.warn(e); return [null, e instanceof Error ? e : new Error(String(e))] }
+    try {
+        return [fn(), null]
+    }
+    catch (e) {
+        console.warn(e);
+        return [null, e instanceof Error ? e : new Error(String(e))]
+    }
 }
 
 function $event(name, detail) {
@@ -173,49 +283,34 @@ function $event(name, detail) {
 }
 
 const $storage = {
-    set(sotrageKey, value) {
-        return $try(() => localStorage.setItem(sotrageKey, String(value)))[1]
+    set(storageKey, value) {
+        return $try(() => localStorage.setItem(storageKey, String(value)))[1]
     },
     get(storageKey, fallbackValue) {
         return $try(() => localStorage.getItem(storageKey))[0] ?? fallbackValue
     }
 }
 
-$define('cd-navbar', (state) => {
+// Initialize theme from storage on page load
+const defaultTheme = $storage.get('theme') ?? 'dark'
+document.documentElement.setAttribute('data-theme', defaultTheme)
+
+$define('cd-nav', function (state) {
     console.log('[@cd-navbar] rendering:', state)
 
-    $onclick('#theme', () => {
-        const root = document.documentElement;
-        const dark = root.getAttribute('data-theme') === 'dark';
-        root.setAttribute('data-theme', dark ? 'light' : 'dark');
-        try { localStorage.setItem('theme', dark ? 'light' : 'dark'); } catch { }
-    })
-
-    $onclick('#sidebar', () => {
-        this.dispatchEvent($event('cd:toggle-sidebar'))
-    })
-
-    $select('#cursor', (cursor) => {
-        return setInterval(() => {
-            cursor.style.opacity = cursor.style.opacity === '0' ? '1' : '0';
-        }, 900);
-    })
-
-    // init with theme from storage
-
-    const defualtTheme = $storage.get('theme') ?? 'dark'
-    document.documentElement.setAttribute('data-theme', defualtTheme)
-
     return `
-  <nav>
-    <div class="nav-title">
-      <
-    </div>
-    <div class="nav-bttns">
-        <button>Home</button>
-        <button>New Session</button>
-        <button>Settings</button>
-        <button>Toggle</button>
-    </div>
-  </nav>
-`})
+        <nav>
+            <div class="nav-title">
+                <div>ConsoleDump</div>
+                <div id="cursor"></div>
+            </div>
+            <div class="nav-bttns">
+                <button>Home</button>
+                <button>New Session</button>
+                <button>Settings</button>
+                <button id="theme">Theme</button>
+                <button id="sidebar">Sidebar</button>
+            </div>
+        </nav>
+    `
+})

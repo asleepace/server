@@ -29,7 +29,7 @@ class CDNav extends HTMLElement {
       <nav>
         <div class="left">
           <span class="ascii" style="color: var(--tint-color);">::</span>
-          <a class="brand" href="/">${title}</a>
+          <a class="brand" href="/">${title}<span id="cursor" class="ascii"> █</span></a>
         </div>
         <div class="right">
           <div class="group navbtns">
@@ -51,6 +51,13 @@ class CDNav extends HTMLElement {
         const sb = this.shadowRoot.getElementById('sidebar');
         if (sb) {
             sb.onclick = () => this.dispatchEvent(new CustomEvent('cd:toggle-sidebar', { bubbles: true, composed: true }));
+        }
+        // blink cursor near brand
+        const cursor = this.shadowRoot.getElementById('cursor');
+        if (cursor) {
+            setInterval(() => {
+                cursor.style.opacity = cursor.style.opacity === '0' ? '1' : '0';
+            }, 900);
         }
         // init from storage
         try {

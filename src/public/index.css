@@ -39,14 +39,14 @@
   --surface: #15171a;
   --text-color: #e6e6e6;
   --muted-text: #aaa;
-  --tint-color: #97b1b3;
+  --tint-color: #a0c3c4;
   --tint-highlight: #c6edef;
-  --border: #2b2d31;
+  --border: #3a3d42;
   --shadow: rgba(0, 0, 0, 0.5);
 
   --code-back-color: #0e0f11;
-  --code-text-color: #e1e1e2;
-  --code-bord-color: #2a2b2e;
+  --code-text-color: #f0f0f2;
+  --code-bord-color: #3a3d42;
 
   --scrollbar-thumb: #3a3d42;
   --scrollbar-track: var(--surface);
@@ -210,7 +210,7 @@ pre {
   background-color: var(--code-back-color);
   border-color: var(--code-bord-color);
   color: var(--code-text-color);
-  border: 1px solid hsl(0, 0%, 90.6%);
+  border: 1px solid var(--code-bord-color);
   border-radius: 4px;
   margin-trim: block;
   text-align: left;
@@ -280,6 +280,32 @@ li {
 .ascii {
   font-family: var(--font-mono);
   color: #7efc7a;
+}
+
+/* Shared buttons (outside web components) */
+.btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--green-accent);
+  font-family: var(--font-mono);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.btn:hover {
+  background: var(--background-2);
+}
+.btn-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.btn-group > * {
+  border: none;
+  border-right: 1px solid var(--border);
+}
+.btn-group > *:last-child {
+  border-right: none;
 }
 
 /* Scrollbar styling */

@@ -310,6 +310,51 @@ impl HttpRequest {
         Ok(true)
     }
 
+    /// Start a chunked transfer-encoding response. Writes status line and headers only.
+    pub fn start_chunked(&mut self, content_type: &str) -> Result<Flag> {
+        self.response.set_status(HttpStatus::OK);
+        self.response.set_header("Transfer-Encoding", "chunked");
+        self.response.set_header("Content-Type", content_type);
+        let mut bytes = self.response.response_headers().into_bytes();
+        let mut stream = self
+            .connection
+            .as_ref()
+            .ok_or(ServerError::error("failed to get tcp stream"))?
+            .as_ref();
+        stream.write_all(&bytes)?;
+        stream.flush()?;
+        Ok(Flag::DynamicRoute)
+    }
+
+    /// Write a chunk body for an active chunked response.
+    pub fn write_chunk(&mut self, data: &[u8]) -> Result<bool> {
+        match self.connection.as_ref() {
+            None => Ok(false),
+            Some(stream) => {
+                let mut stream = stream.as_ref();
+                let header = format!("{:X}{}", data.len(), CRLF);
+                stream.write_all(header.as_bytes())?;
+                stream.write_all(data)?;
+                stream.write_all(CRLF.as_bytes())?;
+                stream.flush()?;
+                Ok(true)
+            }
+        }
+    }
+
+    /// Finish a chunked response by sending the terminating chunk.
+    pub fn finish_chunked(&mut self) -> Result<bool> {
+        match self.connection.as_ref() {
+            None => Ok(false),
+            Some(stream) => {
+                let mut stream = stream.as_ref();
+                stream.write_all(b"0\r\n\r\n")?;
+                stream.flush()?;
+                Ok(true)
+            }
+        }
+    }
+
     /**
        Close the current connection.
     */

@@ -226,42 +226,56 @@ impl Server {
     /// piping the request through the middleware chain and handling the response.
     /// NOTE: Intermediate method to handle the incoming TCP stream.
     pub fn handle(&self, tcp_stream: TcpStream) {
-        // 1. convert the TcpStream to an HttpRequest
-        let mut request = match self.tcp_to_http(tcp_stream) {
-            Ok(request) => request,
-            Err(error) => {
-                eprintln!("[server] error converting tcp to http: {}", error);
-                return;
-            }
-        };
+        // Minimal keep-alive loop: serve multiple requests until read fails or times out
+        let mut stream_opt = Some(tcp_stream);
+        while let Some(stream) = stream_opt.take() {
+            // 1. convert the TcpStream to an HttpRequest
+            let mut request = match self.tcp_to_http(stream) {
+                Ok(request) => request,
+                Err(error) => {
+                    eprintln!("[server] error converting tcp to http: {}", error);
+                    break;
+                }
+            };
 
-        // 2. pipe the request through the middleware chain and get the status code
-        let status_code = match self.middlewares.read(|mid| (*mid).handle(&mut request)) {
-            Err(err) => {
-                eprintln!("[server] middleware error: {}", err);
-                request.mark_error(err);
-                return;
-            }
-            Ok(code) => code,
-        };
+            // 2. pipe the request through the middleware chain and get the status code
+            let status_code = match self.middlewares.read(|mid| (*mid).handle(&mut request)) {
+                Err(err) => {
+                    eprintln!("[server] middleware error: {}", err);
+                    request.mark_error(err);
+                    break;
+                }
+                Ok(code) => code,
+            };
 
-        // 3. if request started an SSE stream, handoff to SSE manager and return
-        if request.is_event_stream() {
-            self.handoff_sse(request);
-            return;
-        }
+            // 3. if request started an SSE stream, handoff to SSE manager and return
+            if request.is_event_stream() {
+                self.handoff_sse(request);
+                break;
+            }
 
-        // 4. handle the response based on the status code
-        match request.get_response_state() {
-            ResponseState::Handled(status) => {
-                println!("[server] finished with code: {}", status);
+            // 4. report status; connection remains open for next request
+            match request.get_response_state() {
+                ResponseState::Handled(status) => {
+                    println!("[server] finished with code: {}", status);
+                }
+                ResponseState::Error(err) => {
+                    eprintln!("[server] request error: {}", err);
+                    break;
+                }
+                ResponseState::NotHandled => {
+                    println!("[server] request not handled, status code: {}", status_code);
+                }
             }
-            ResponseState::Error(err) => {
-                eprintln!("[server] request error: {}", err);
-            }
-            ResponseState::NotHandled => {
-                println!("[server] request not handled, status code: {}", status_code);
-            }
+
+            // re-acquire the underlying TCP stream to continue serving
+            stream_opt = match request.connection.as_ref() {
+                None => None,
+                Some(arc) => match arc.as_ref().try_clone() {
+                    Ok(cloned) => Some(cloned),
+                    Err(_) => None,
+                },
+            };
         }
     }
 

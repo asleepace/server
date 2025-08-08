@@ -36,16 +36,12 @@ impl Connections {
     /// and returning the current index of the incoming TCP streams. This index will be
     /// used to get the incoming TCP stream and handle the incoming HTTP request.
     pub fn process(&self, stream: TcpStream) -> Result<Arc<TcpStream>, std::io::Error> {
-        match self.add(stream) {
-            Err(e) => {
-                println!("[connections] error processing: {:?}", e);
-                Err(e)
-            }
-            Ok(index) => {
-                let tcp_stream = self.get(index)?;
-                Ok(tcp_stream)
-            }
-        }
+        // Configure and wrap without retaining in shared state to avoid growth
+        let stream = match Connections::configure(stream) {
+            Ok(s) => s,
+            Err(e) => return Err(e),
+        };
+        Ok(Arc::new(stream))
     }
 
     /// Handle the incoming TCP stream by setting the TTL, checking if the stream is

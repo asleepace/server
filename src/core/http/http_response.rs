@@ -3,6 +3,7 @@ use crate::core::security::{sanitize_path, validate_path_bounds};
 use crate::core::util::get_mime_type;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io::Error;
@@ -10,6 +11,9 @@ use std::io::{BufRead, BufReader};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::http_headers::HttpVersion;
 use super::HttpStatus;
@@ -82,6 +86,22 @@ impl HttpResponse {
             }
         };
 
+        // Tiny URL → (PathBuf, mime) cache with short TTL
+        static CACHE: OnceLock<Mutex<HashMap<String, (PathBuf, String, Instant)>>> =
+            OnceLock::new();
+        let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        {
+            if let Ok(mut m) = cache.lock() {
+                if let Some((p, mime, ts)) = m.get(&clean_path).cloned() {
+                    if ts.elapsed().as_secs() < 5 {
+                        return Ok((p, mime));
+                    } else {
+                        m.remove(&clean_path);
+                    }
+                }
+            }
+        }
+
         let public_dir = Self::public_base();
         let base_dir = Path::new(&public_dir);
 
@@ -110,6 +130,12 @@ impl HttpResponse {
             if full_path.exists() && full_path.is_file() {
                 println!("[http_request] resolved: {:?}", full_path);
                 let mime = get_mime_type(&candidate);
+                if let Ok(mut m) = cache.lock() {
+                    m.insert(
+                        clean_path.clone(),
+                        (full_path.clone(), mime.clone(), Instant::now()),
+                    );
+                }
                 return Ok((full_path, mime));
             }
         }
@@ -235,11 +261,53 @@ impl HttpResponse {
         let code = self.status.code();
         let message = self.status.message();
         let mut http_response_headers = format!("{} {} {}\r\n", version, code, message);
+        // default headers if not set
+        if self.headers.raw.get("Date").is_none() {
+            http_response_headers.push_str(&format!("Date: {}\r\n", Self::http_date()));
+        }
+        if self.headers.raw.get("Server").is_none() {
+            http_response_headers.push_str("Server: serveros/0.1\r\n");
+        }
+        if self.headers.raw.get("Connection").is_none() {
+            http_response_headers.push_str("Connection: keep-alive\r\n");
+        }
         for (key, value) in self.headers.raw.borrow() {
             http_response_headers.push_str(&format!("{}: {}\r\n", key, value));
         }
         http_response_headers.push_str("\r\n");
         http_response_headers
+    }
+
+    fn http_date() -> String {
+        // Very small RFC-1123-ish date for GMT without deps (approximate)
+        // Falls back to UNIX_EPOCH if needed
+        const WK: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const MO: [&str; 12] = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        // Approximation: not exact weekday; acceptable for header fallback
+        let days = now.as_secs() / 86_400;
+        let weekday = WK[(days % 7) as usize];
+        let year = 1970 + (days / 365) as u64; // rough
+        let month = (days % 365) / 30; // rough
+        let day = ((days % 365) % 30) + 1;
+        let secs = now.as_secs() % 86_400;
+        let hh = secs / 3600;
+        let mm = (secs % 3600) / 60;
+        let ss = secs % 60;
+        format!(
+            "{}, {:02} {} {:04} {:02}:{:02}:{:02} GMT",
+            weekday,
+            day,
+            MO[(month % 12) as usize],
+            year,
+            hh,
+            mm,
+            ss
+        )
     }
 
     /**

@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug server (cargo)",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--bin=server", "--package=server"]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "terminal": "integrated"
+    },
+    {
+      "name": "Run server (release)",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--release", "--bin=server", "--package=server"]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "terminal": "integrated"
+    }
+  ]
+}
+

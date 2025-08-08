@@ -33,7 +33,7 @@ impl Config {
     pub fn copy(&self) -> Self {
         Config {
             host: self.host.clone(),
-            port: 8080,
+            port: self.port,
         }
     }
 }

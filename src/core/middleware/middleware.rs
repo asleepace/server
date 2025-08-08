@@ -9,14 +9,14 @@ pub type NextResult = Result<u16, std::io::Error>;
 /**
     The NextHandler type is a function pointer for the next middleware handler in the chain.
 */
-pub type NextHandler = Box<dyn FnOnce(&mut HttpRequest) -> NextResult>;
+pub type NextHandler<'a> = Box<dyn FnOnce(&mut HttpRequest) -> NextResult + 'a>;
 
 /**
     Middleware trait for implementing custom request handling logic,
     such as rate limiting, authentication, etc.
 */
 pub trait Middleware: Send + Sync + 'static {
-    fn handle(&self, request: &mut HttpRequest, next: NextHandler) -> NextResult;
+    fn handle<'a>(&'a self, request: &mut HttpRequest, next: NextHandler<'a>) -> NextResult;
 }
 
 /**
@@ -41,7 +41,7 @@ impl MiddlewareService {
         self.chain.push(middleware);
     }
 
-    pub fn handle(&mut self, request: &mut HttpRequest) -> Result<u16, std::io::Error> {
+    pub fn handle(&self, request: &mut HttpRequest) -> Result<u16, std::io::Error> {
         self.exec_middleware_chain(request, 0)
     }
 
@@ -53,22 +53,15 @@ impl MiddlewareService {
         Execute the middleware chain in order from first to last, and the propogating back
         down the chain from last to first. This is done via a recursive function call.
     */
-    fn exec_middleware_chain(&mut self, request: &mut HttpRequest, index: usize) -> NextResult {
+    fn exec_middleware_chain<'a>(&'a self, request: &mut HttpRequest, index: usize) -> NextResult {
         // Reaches the end of the chain and return `0` to indicate that the request was not handled
         if index >= self.chain.len() {
             return Ok(0);
         }
 
-        // Create pointer before the closure
-        let this = self as *mut MiddlewareService;
-
-        // Safety: `this` pointer is valid for the duration of middleware execution
-        // since MiddlewareService outlives all middleware calls
         self.chain[index].handle(
             request,
-            Box::new(move |request: &mut HttpRequest| unsafe {
-                (*this).exec_middleware_chain(request, index + 1)
-            }),
+            Box::new(move |req: &mut HttpRequest| self.exec_middleware_chain(req, index + 1)),
         )
     }
 }

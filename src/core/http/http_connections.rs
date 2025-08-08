@@ -86,7 +86,13 @@ impl HttpConnections {
                     break;
                 }
 
-                if last_keep_alive.elapsed().as_millis() > 300 {
+                let interval_secs: f64 = std::env::var("SSE_HEARTBEAT_SECS")
+                    .ok()
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .filter(|v| *v > 0.0 && *v < 600.0)
+                    .unwrap_or(15.0);
+
+                if last_keep_alive.elapsed().as_secs_f64() > interval_secs {
                     let event = ServerEvent::keep_alive();
                     let mut connections_unlocked = connections.lock().unwrap();
                     let total_connections = connections_unlocked.len();

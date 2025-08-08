@@ -9,10 +9,10 @@ pub trait MiddlewareAdapter: Send + Sync + 'static {
 }
 
 impl<T: MiddlewareAdapter> Middleware for T {
-    fn handle(
-        &self,
+    fn handle<'a>(
+        &'a self,
         request: &mut HttpRequest,
-        next: Box<dyn FnOnce(&mut HttpRequest) -> Result<u16, std::io::Error>>,
+        next: Box<dyn FnOnce(&mut HttpRequest) -> Result<u16, std::io::Error> + 'a>,
     ) -> Result<u16, std::io::Error> {
         println!("[middleware] adapter not implemented!");
         return next(request);

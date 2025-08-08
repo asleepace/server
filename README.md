@@ -21,6 +21,7 @@ cargo build --release
 ## 🏗️ Architecture
 
 ### Request Flow
+
 ```
 Client → Incoming Request → Middleware Chain → Route Handlers → Static File Middleware → Response
 ```
@@ -28,11 +29,13 @@ Client → Incoming Request → Middleware Chain → Route Handlers → Static F
 ### Core Components
 
 #### **Middleware System**
+
 - **Response State Tracking**: Prevents duplicate responses
 - **Composable Middleware**: Chain multiple middleware components
 - **Error Boundaries**: Graceful error handling without panics
 
 #### **Dynamic Route Matching**
+
 ```rust
 // Static routes
 server.route("/", |req| { /* handler */ });
@@ -44,6 +47,18 @@ server.route("/posts/[postId]/comments/[commentId]", |req| { /* handler */ });
 ```
 
 #### **Static File Serving**
+
+#### **Concurrency Model**
+
+- Decision: bounded worker pool using std-only (Option B)
+
+  - N worker threads (default: available_parallelism) pull `TcpStream`s from a bounded queue
+  - Backpressure via queue capacity to prevent unbounded memory growth
+  - Simple, dependency-free, predictable under load; suitable for massive parallel short-lived requests
+  - Flag: `--workers N` to override worker count
+
+  - SSE handoff (Option 2 atop pool): after upgrading a connection to SSE, the server hands the request to the SSE manager and frees the worker. Long-lived streams are maintained by `HttpConnections`, keeping the pool available for short-lived requests.
+
 - **Secure Path Resolution**: Prevents path traversal attacks
 - **Fallback Chain**: `file.html` → `folder/index.html` → `404.html`
 - **Optional Middleware**: Only serves files if no response sent
@@ -51,19 +66,22 @@ server.route("/posts/[postId]/comments/[commentId]", |req| { /* handler */ });
 ## 🔒 Security Features
 
 ### Path Traversal Protection
+
 ```rust
 // Blocked attacks
 "/../../../etc/passwd"  // ❌ Blocked
-"/~/.ssh/id_rsa"        // ❌ Blocked  
+"/~/.ssh/id_rsa"        // ❌ Blocked
 "C:\\Windows\\System32" // ❌ Blocked
 ```
 
 ### Input Validation
+
 - **Character Allowlist**: `a-zA-Z0-9`, `-`, `_`, `.`, `/`
 - **Path Length Limits**: Maximum 255 characters
 - **Boundary Enforcement**: All paths stay within `./src/public/`
 
 ### Security Logging
+
 ```bash
 [security] Blocked request for: /../../../etc/passwd
 [security] Path bounds violation for root path
@@ -89,6 +107,7 @@ server/
 ## 🛠️ Development
 
 ### Adding Routes
+
 ```rust
 // Static route
 server.route("/api/health", |req| {
@@ -108,6 +127,7 @@ server.route("/download/[filename]", |req| {
 ```
 
 ### Custom Middleware
+
 ```rust
 // Authentication middleware
 server.middleware(|req, next| {
@@ -127,6 +147,7 @@ server.middleware(|req, next| {
 ```
 
 ### Response State Management
+
 ```rust
 // Check if response already sent
 if req.is_response_sent() {
@@ -143,16 +164,18 @@ req.mark_error(std::io::Error::new(ErrorKind::NotFound, "Not found"));
 ## 🔍 Debugging
 
 ### Enable Debug Logging
+
 ```bash
 RUST_LOG=debug cargo run
 ```
 
 ### Common Debug Points
+
 ```bash
 # Middleware registration
 [middleware] registering middleware...
 
-# Route registration  
+# Route registration
 [routes] registering route: /users/[userId] -> handler__users_userId
 
 # Request handling
@@ -165,6 +188,7 @@ RUST_LOG=debug cargo run
 ```
 
 ### Error Handling
+
 - **No Panics**: All errors handled gracefully
 - **Error Logging**: Comprehensive error tracking
 - **Status Codes**: Proper HTTP status code responses
@@ -172,6 +196,7 @@ RUST_LOG=debug cargo run
 ## 🧪 Testing
 
 ### Unit Tests
+
 ```bash
 # Run all tests
 cargo test
@@ -182,6 +207,7 @@ cargo test routes
 ```
 
 ### Integration Tests
+
 ```bash
 # Start server
 cargo run &
@@ -198,12 +224,14 @@ curl http://localhost:8080/../../../etc/passwd  # Should be blocked
 ## 📊 Performance
 
 ### Benchmarks
+
 - **Request Processing**: < 1ms per request
 - **Memory Usage**: ~2MB baseline
 - **Concurrent Connections**: 1000+ simultaneous
 - **Static File Serving**: Optimized with secure caching
 
 ### Optimization Tips
+
 ```rust
 // Use Arc for shared state
 let shared_data = Arc::new(Mutex::new(Data::new()));
@@ -218,12 +246,14 @@ let routes = HashMap::new(); // O(1) lookup
 ## 🔧 Configuration
 
 ### Environment Variables
+
 ```bash
 RUST_LOG=debug          # Logging level
 RUST_BACKTRACE=1        # Stack traces
 ```
 
 ### Command Line Options
+
 ```bash
 --host "localhost"       # Bind address
 --port 8080             # Port number
@@ -232,16 +262,19 @@ RUST_BACKTRACE=1        # Stack traces
 ## 🚨 Security Considerations
 
 ### Path Traversal Protection
+
 - **Input Sanitization**: All paths validated before use
 - **Boundary Checking**: Paths cannot escape public directory
 - **Character Filtering**: Only safe characters allowed
 
 ### Error Information Disclosure
+
 - **Generic Errors**: No sensitive information in error messages
 - **Security Logging**: All blocked requests logged
 - **Graceful Degradation**: Server continues running after errors
 
 ### Static File Security
+
 - **MIME Type Detection**: Proper content-type headers
 - **File Size Limits**: Prevents memory exhaustion
 - **Directory Listing**: Disabled by default
@@ -249,11 +282,13 @@ RUST_BACKTRACE=1        # Stack traces
 ## 📈 Monitoring
 
 ### Health Checks
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 ### Metrics
+
 - Request count per route
 - Response time distribution
 - Error rate tracking
@@ -262,12 +297,14 @@ curl http://localhost:8080/health
 ## 🤝 Contributing
 
 ### Code Style
+
 - Follow Rust conventions
 - Add tests for new features
 - Update documentation
 - Security review for new routes
 
 ### Testing Checklist
+
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Security tests pass

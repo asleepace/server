@@ -1,7 +1,7 @@
 use crate::core::cli;
 use crate::core::connections::Connections;
-use crate::core::http::{HttpRequest, HttpResponse};
 use crate::core::http::http_request::ResponseState;
+use crate::core::http::{HttpRequest, HttpResponse};
 use crate::core::middleware::{Middleware, MiddlewareService};
 use crate::core::state::SharedState;
 use crate::core::util::get_mime_type;
@@ -9,12 +9,16 @@ use crate::core::Config;
 use crate::core::ServerEvent;
 use crate::core::Stdout;
 
+use crate::core::util::BoundedWorkerPool;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fmt::format;
 use std::io::{BufWriter, Error, ErrorKind, Result, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Condvar;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{fs, thread};
@@ -112,7 +116,7 @@ impl Server {
     /// all routes have been defined, but before the server is started.
     fn prepare(&mut self) {
         let routes = self.routes.clone();
-        
+
         // Register route handler middleware
         self.middleware(move |req, next| {
             if req.is_response_sent() {
@@ -124,9 +128,9 @@ impl Server {
                     // No route matched, continue to next middleware
                     next(req)
                 }
-                Some((handler, _parameters)) => {
+                Some((handler, parameters)) => {
                     // Store parameters in request for handler access
-                    // TODO: Add parameter access to HttpRequest
+                    req.set_params(parameters);
                     match handler(req) {
                         Ok(status_code) => {
                             req.mark_response_sent(status_code);
@@ -162,18 +166,51 @@ impl Server {
         });
     }
 
-    /// Start the server and handle incoming connections.
+    /// Start the server and handle incoming connections using a bounded worker pool.
     /// NOTE: This method is blocking.
     pub fn start(&mut self) {
         self.prepare();
-        // register routes as the last middleware
         println!("[server] starting server...");
-        for stream in self.tcp_listener.incoming() {
-            match stream {
-                Err(error) => self.error("err_incoming_stream", error.to_string()),
-                Ok(stream) => self.handle(stream),
+
+        // Determine worker count: --workers overrides, else available_parallelism
+        let argv = cli::process_args();
+        let default_workers = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        let worker_count: usize = match cli::args::parse_as_num(&argv, "--workers") {
+            Some(n) if n > 0 => n as usize,
+            _ => default_workers,
+        };
+
+        // Queue capacity (defaults to workers * 1024)
+        let queue_capacity: usize = match cli::args::parse_as_num(&argv, "--queue-capacity") {
+            Some(n) if n > 0 => n as usize,
+            _ => worker_count * 1024,
+        };
+
+        // Use a reusable bounded worker pool abstraction
+        let capacity = queue_capacity;
+        let pool = BoundedWorkerPool::<TcpStream>::new(worker_count, capacity, Arc::new(|_| {}));
+
+        // Spawn worker threads that pop from pool and dispatch to self.handle
+        thread::scope(|scope| {
+            for _ in 0..worker_count {
+                let pool_ref = &pool;
+                // borrow &self within scope
+                let server_ref: &Server = &self;
+                scope.spawn(move || loop {
+                    let stream = pool_ref.pop_blocking();
+                    server_ref.handle(stream);
+                });
             }
-        }
+
+            for incoming in self.tcp_listener.incoming() {
+                match incoming {
+                    Err(error) => self.error("err_incoming_stream", error.to_string()),
+                    Ok(stream) => pool.submit(stream),
+                }
+            }
+        });
     }
 
     /// Store the incoming TCP stream and convert it to an HttpRequest.
@@ -199,7 +236,7 @@ impl Server {
         };
 
         // 2. pipe the request through the middleware chain and get the status code
-        let status_code = match self.middlewares.write(|mid| (*mid).handle(&mut request)) {
+        let status_code = match self.middlewares.read(|mid| (*mid).handle(&mut request)) {
             Err(err) => {
                 eprintln!("[server] middleware error: {}", err);
                 request.mark_error(err);
@@ -208,7 +245,13 @@ impl Server {
             Ok(code) => code,
         };
 
-        // 3. handle the response based on the status code
+        // 3. if request started an SSE stream, handoff to SSE manager and return
+        if request.is_event_stream() {
+            self.handoff_sse(request);
+            return;
+        }
+
+        // 4. handle the response based on the status code
         match request.get_response_state() {
             ResponseState::Handled(status) => {
                 println!("[server] finished with code: {}", status);
@@ -220,6 +263,12 @@ impl Server {
                 println!("[server] request not handled, status code: {}", status_code);
             }
         }
+    }
+
+    /// Handoff a live SSE request to the SSE manager so worker thread is freed
+    pub fn handoff_sse(&self, req: HttpRequest) {
+        println!("[server] handing off SSE stream: {}", req.uri);
+        self.connections.add_stream(req);
     }
 
     /// Register a route handler for a static file.
@@ -244,10 +293,10 @@ impl Server {
             where
                 F: Fn(&mut HttpRequest, NextHandler) -> NextResult + Send + Sync + 'static,
             {
-                fn handle(
-                    &self,
+                fn handle<'a>(
+                    &'a self,
                     request: &mut HttpRequest,
-                    next: Box<dyn FnOnce(&mut HttpRequest) -> Result<u16>>,
+                    next: Box<dyn FnOnce(&mut HttpRequest) -> Result<u16> + 'a>,
                 ) -> Result<u16> {
                     (self.0)(request, next)
                 }

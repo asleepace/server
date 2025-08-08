@@ -3,6 +3,7 @@ use crate::core::state::SharedState;
 use crate::core::traits::ArcRwLock;
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
+use std::time::Duration;
 use std::usize;
 use std::vec::Vec;
 
@@ -17,13 +18,17 @@ impl Connections {
         }
     }
 
-    /// Configure the incoming TCP stream by setting the TTL and non-blocking options.
-    /// NOTE: Some of these options throw errors in dev.
-    /// TODO: Handle rate limiting and other options.
+    /// Configure the incoming TCP stream (Linux/macOS):
+    /// - set TTL
+    /// - enable TCP_NODELAY
+    /// - set read/write timeouts to mitigate slowloris
+    /// - keep socket in blocking mode for simple buffered reads
     fn configure(tcp_stream: TcpStream) -> Result<TcpStream, std::io::Error> {
-        tcp_stream.set_ttl(30)?;
-        tcp_stream.set_nonblocking(true)?;
-        tcp_stream.set_nodelay(true)?;
+        let _ = tcp_stream.set_ttl(30);
+        let _ = tcp_stream.set_nodelay(true);
+        let _ = tcp_stream.set_nonblocking(false);
+        let _ = tcp_stream.set_read_timeout(Some(Duration::from_secs(5)));
+        let _ = tcp_stream.set_write_timeout(Some(Duration::from_secs(5)));
         Ok(tcp_stream)
     }
 
@@ -47,7 +52,7 @@ impl Connections {
     /// valid, and pushing the stream to the incoming TCP streams. The result returned
     /// is the current index of the incoming TCP streams.
     pub fn add(&self, stream: TcpStream) -> Result<usize, std::io::Error> {
-        // let stream = Connections::configure(stream)?;
+        let stream = Connections::configure(stream)?;
         self.tcp_incoming.write(|tcp_incoming| {
             let arc_stream = Arc::new(stream);
             let idx_stream = tcp_incoming.len();

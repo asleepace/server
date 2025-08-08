@@ -87,18 +87,7 @@ pub fn parse_as_num(args: &HashMap<String, Args>, token: &str) -> Option<i64> {
     }
 }
 
-pub fn parse_as_float(args: &HashMap<String, Args>, token: &str) -> Option<f64> {
-    match args.get(token) {
-        Some(Args::Decimal(value)) => Some(*value),
-        Some(Args::Number(integer)) => Some(*integer as f64),
-        Some(Args::Text(text)) => text.parse::<f64>().ok(),
-        Some(Args::Bool(bool)) => match bool {
-            true => Some(1.0),
-            false => Some(0.0),
-        },
-        _ => None,
-    }
-}
+// parse_as_float defined above
 
 pub fn parse_as_str(args: &HashMap<String, Args>, token: &str) -> Option<String> {
     match args.get(token) {

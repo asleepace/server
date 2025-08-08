@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     // special endpoint for event-streams
     server.route("/events", |sr| {
         println!("[main] serving route: /events");
-        match sr.event_souce() {
+        match sr.event_source() {
             Ok(_) => Ok(200),
             Err(err) => Err(err),
         }
@@ -85,7 +85,9 @@ fn main() -> Result<()> {
     // Dynamic routes with parameters
     server.route("/users/[userId]", |sr| {
         println!("[main] serving dynamic route: /users/[userId]");
-        // TODO: Access userId parameter from request
+        if let Some(user_id) = sr.param("userId") {
+            println!("userId = {}", user_id);
+        }
         match sr.send_file("user.html") {
             Ok(_) => Ok(200),
             Err(err) => Err(err),
@@ -94,7 +96,9 @@ fn main() -> Result<()> {
 
     server.route("/posts/[postId]", |sr| {
         println!("[main] serving dynamic route: /posts/[postId]");
-        // TODO: Access postId parameter from request
+        if let Some(id) = sr.param("postId") {
+            println!("postId = {}", id);
+        }
         match sr.send_file("post.html") {
             Ok(_) => Ok(200),
             Err(err) => Err(err),
@@ -103,7 +107,12 @@ fn main() -> Result<()> {
 
     server.route("/posts/[postId]/comments/[commentId]", |sr| {
         println!("[main] serving dynamic route: /posts/[postId]/comments/[commentId]");
-        // TODO: Access postId and commentId parameters from request
+        if let Some(pid) = sr.param("postId") {
+            println!("postId = {}", pid);
+        }
+        if let Some(cid) = sr.param("commentId") {
+            println!("commentId = {}", cid);
+        }
         match sr.send_file("comment.html") {
             Ok(_) => Ok(200),
             Err(err) => Err(err),

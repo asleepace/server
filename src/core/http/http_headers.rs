@@ -105,7 +105,7 @@ impl HttpHeaders {
     pub fn new() -> Self {
         HttpHeaders {
             method: HttpMethod::GET,
-            version: HttpVersion::HTTP2_0,
+            version: HttpVersion::HTTP1_1,
             uri: URI::new("/"),
             raw: HashMap::new(),
         }

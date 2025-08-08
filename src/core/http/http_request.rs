@@ -22,11 +22,14 @@ use std::sync::Arc;
 
 */
 const CRLF: &str = "\r\n";
+const MAX_REQUEST_LINE: usize = 8 * 1024; // 8 KiB
+const MAX_HEADERS: usize = 64;
+const MAX_BODY: usize = 2 * 1024 * 1024; // 2 MiB (not fully used yet)
 
 #[derive(Debug, Clone)]
 pub enum ResponseState {
     NotHandled,
-    Handled(u16), // status code
+    Handled(u16),  // status code
     Error(String), // Store error message instead of std::io::Error
 }
 
@@ -37,6 +40,7 @@ pub struct HttpRequest {
     pub response: HttpResponse,
     pub connection: Option<Arc<TcpStream>>,
     pub data: Vec<String>,
+    pub params: Option<std::collections::HashMap<String, String>>,
     pub response_state: ResponseState,
 }
 
@@ -68,6 +72,7 @@ impl HttpRequest {
             headers,
             data,
             response_state: ResponseState::NotHandled,
+            params: None,
             uri,
         }
     }
@@ -83,6 +88,7 @@ impl HttpRequest {
             connection: None,
             data: Vec::new(),
             response_state: ResponseState::NotHandled,
+            params: None,
         }
     }
 
@@ -113,6 +119,7 @@ impl HttpRequest {
                 ResponseState::Handled(status) => ResponseState::Handled(*status),
                 ResponseState::Error(msg) => ResponseState::Error(msg.clone()),
             },
+            params: self.params.clone(),
         }
     }
 
@@ -130,6 +137,16 @@ impl HttpRequest {
                     if data == CRLF || bytes == 0 {
                         break;
                     } else {
+                        // Enforce limits
+                        if header.is_empty() && data.len() > MAX_REQUEST_LINE {
+                            return Err(Error::new(
+                                ErrorKind::InvalidInput,
+                                "request line too long",
+                            ));
+                        }
+                        if header.len() >= MAX_HEADERS {
+                            return Err(Error::new(ErrorKind::InvalidInput, "too many headers"));
+                        }
                         header.push(data);
                     }
                 }
@@ -184,7 +201,7 @@ impl HttpRequest {
             let bytes = response.prepare();
             stream.write_all(&bytes)?;
             stream.flush()?;
-            stream.shutdown(Shutdown::Both)?;
+            // do not shutdown here to support keep-alive
         }
         Ok(())
     }
@@ -201,7 +218,7 @@ impl HttpRequest {
             let mut stream = stream.as_ref();
             stream.write_all(&bytes)?;
             stream.flush()?;
-            stream.shutdown(Shutdown::Both)?;
+            // do not shutdown here to support keep-alive
         }
         Ok(Flag::StaticFile)
     }
@@ -210,7 +227,23 @@ impl HttpRequest {
         self.headers.uri_string()
     }
 
-    pub fn event_souce(&mut self) -> Result<Flag> {
+    pub fn set_params(&mut self, params: std::collections::HashMap<String, String>) {
+        self.params = Some(params);
+    }
+
+    pub fn param(&self, key: &str) -> Option<&String> {
+        self.params.as_ref()?.get(key)
+    }
+
+    /// Returns true if the current response has been set up as an SSE stream
+    pub fn is_event_stream(&self) -> bool {
+        match self.response.headers.raw.get("Content-Type") {
+            Some(v) => v == "text/event-stream",
+            None => false,
+        }
+    }
+
+    pub fn event_source(&mut self) -> Result<Flag> {
         let result = self.response.start_event_stream();
         let stream_ref = self
             .connection

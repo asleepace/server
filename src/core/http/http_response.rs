@@ -3,6 +3,7 @@ use crate::core::security::{sanitize_path, validate_path_bounds};
 use crate::core::util::get_mime_type;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
+use std::env;
 use std::fs;
 use std::io::Error;
 use std::io::{BufRead, BufReader};
@@ -81,8 +82,9 @@ impl HttpResponse {
             }
         };
 
-        let base_dir = Path::new("./src/public");
-        
+        let public_dir = Self::public_base();
+        let base_dir = Path::new(&public_dir);
+
         // Handle root path
         if clean_path.is_empty() {
             let index_path = base_dir.join("index.html");
@@ -95,15 +97,15 @@ impl HttpResponse {
 
         // Try different resolution strategies in order
         let candidates = Self::generate_path_candidates(&clean_path);
-        
+
         for candidate in candidates {
             let full_path = base_dir.join(&candidate);
-            
+
             // Security: Validate path bounds
             if let Err(_) = validate_path_bounds(&full_path, base_dir) {
                 continue; // Skip this candidate, try next
             }
-            
+
             // Check if file exists
             if full_path.exists() && full_path.is_file() {
                 println!("[http_request] resolved: {:?}", full_path);
@@ -119,32 +121,53 @@ impl HttpResponse {
     /// Generates candidate paths to try for file resolution
     fn generate_path_candidates(clean_path: &str) -> Vec<String> {
         let mut candidates = Vec::new();
-        
+
         // Strategy 1: Try exact path first
         candidates.push(clean_path.to_string());
-        
+
         // Strategy 2: If path doesn't end with .html, try adding .html
         if !clean_path.ends_with(".html") && !clean_path.contains('.') {
             candidates.push(format!("{}.html", clean_path));
         }
-        
+
         // Strategy 3: Try as directory with index.html
         candidates.push(format!("{}/index.html", clean_path));
-        
+
         candidates
     }
 
     /// Returns 404.html as fallback, or creates a basic 404 response if 404.html doesn't exist
     fn get_404_fallback() -> Result<(PathBuf, String), Error> {
-        let fallback_path = Path::new("./src/public/404.html");
+        let base = Self::public_base();
+        let combined = format!("{}/404.html", base);
+        let fallback_path = Path::new(&combined);
         if fallback_path.exists() {
             Ok((fallback_path.to_path_buf(), get_mime_type("404.html")))
         } else {
             // Create a basic 404 response if 404.html doesn't exist
             Err(Error::new(
                 std::io::ErrorKind::NotFound,
-                "File not found and no 404.html available"
+                "File not found and no 404.html available",
             ))
+        }
+    }
+
+    /// Determine public base dir:
+    /// - use env PUBLIC_DIR if set
+    /// - default to ./src/public for debug builds and ./public for release
+    fn public_base() -> String {
+        if let Ok(dir) = env::var("PUBLIC_DIR") {
+            if !dir.is_empty() {
+                return dir;
+            }
+        }
+        #[cfg(debug_assertions)]
+        {
+            "./src/public".to_string()
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            "./public".to_string()
         }
     }
 
@@ -228,7 +251,6 @@ impl HttpResponse {
         let response_in_bytes = self.prepare();
         tcp_stream.write_all(&response_in_bytes)?;
         tcp_stream.flush()?;
-        tcp_stream.shutdown(Shutdown::Both)?;
         Ok(())
     }
 }

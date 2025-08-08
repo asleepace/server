@@ -3,11 +3,7 @@ use core::cli::args;
 use core::http::HttpRequest;
 use core::server::Server;
 use core::Stdout;
-use std::future::Future;
 use std::io::{Error, Result};
-use std::net::UdpSocket;
-use std::task::Poll;
-use std::{thread, time};
 
 mod core;
 
@@ -52,6 +48,7 @@ fn main() -> Result<()> {
 
     // MARK: Routes
 
+    // Static routes
     server.route("/", |sr| {
         println!("[main] serving route: /");
         match sr.send_file("index.html") {
@@ -80,6 +77,34 @@ fn main() -> Result<()> {
     server.route("/info", |sr| {
         println!("[main] serving route: /info");
         match sr.send_file("info.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    // Dynamic routes with parameters
+    server.route("/users/[userId]", |sr| {
+        println!("[main] serving dynamic route: /users/[userId]");
+        // TODO: Access userId parameter from request
+        match sr.send_file("user.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    server.route("/posts/[postId]", |sr| {
+        println!("[main] serving dynamic route: /posts/[postId]");
+        // TODO: Access postId parameter from request
+        match sr.send_file("post.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    server.route("/posts/[postId]/comments/[commentId]", |sr| {
+        println!("[main] serving dynamic route: /posts/[postId]/comments/[commentId]");
+        // TODO: Access postId and commentId parameters from request
+        match sr.send_file("comment.html") {
             Ok(_) => Ok(200),
             Err(err) => Err(err),
         }

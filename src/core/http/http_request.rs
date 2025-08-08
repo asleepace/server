@@ -23,13 +23,21 @@ use std::sync::Arc;
 */
 const CRLF: &str = "\r\n";
 
+#[derive(Debug, Clone)]
+pub enum ResponseState {
+    NotHandled,
+    Handled(u16), // status code
+    Error(String), // Store error message instead of std::io::Error
+}
+
 #[derive(Clone)]
 pub struct HttpRequest {
     pub uri: String,
     pub headers: HttpHeaders,
     pub response: HttpResponse,
     pub connection: Option<Arc<TcpStream>>,
-    data: Vec<String>,
+    pub data: Vec<String>,
+    pub response_state: ResponseState,
 }
 
 impl HttpRequest {
@@ -59,6 +67,7 @@ impl HttpRequest {
             connection: Some(stream),
             headers,
             data,
+            response_state: ResponseState::NotHandled,
             uri,
         }
     }
@@ -73,6 +82,7 @@ impl HttpRequest {
             response: HttpResponse::new(),
             connection: None,
             data: Vec::new(),
+            response_state: ResponseState::NotHandled,
         }
     }
 
@@ -97,6 +107,11 @@ impl HttpRequest {
             connection: match &self.connection {
                 Some(conn) => Some(Arc::clone(conn)),
                 None => None,
+            },
+            response_state: match &self.response_state {
+                ResponseState::NotHandled => ResponseState::NotHandled,
+                ResponseState::Handled(status) => ResponseState::Handled(*status),
+                ResponseState::Error(msg) => ResponseState::Error(msg.clone()),
             },
         }
     }
@@ -266,16 +281,37 @@ impl HttpRequest {
        Close the current connection.
     */
     pub fn close(&self) -> std::io::Result<()> {
-        println!("[http_request] closing...");
-        match self.connection.as_ref() {
+        match &self.connection {
             Some(stream) => {
-                println!("[http_request] shutting down stream...");
+                let mut stream = stream.as_ref();
                 stream.shutdown(Shutdown::Both)
             }
-            None => {
-                println!("[http_request] connection already closed!");
-                Ok(())
-            }
+            None => Ok(()),
         }
+    }
+
+    /// Check if a response has already been sent
+    pub fn is_response_sent(&self) -> bool {
+        matches!(self.response_state, ResponseState::Handled(_))
+    }
+
+    /// Mark that a response has been sent with the given status code
+    pub fn mark_response_sent(&mut self, status_code: u16) {
+        self.response_state = ResponseState::Handled(status_code);
+    }
+
+    /// Mark that an error occurred during request handling
+    pub fn mark_error(&mut self, error: std::io::Error) {
+        self.response_state = ResponseState::Error(error.to_string());
+    }
+
+    /// Get the current response state
+    pub fn get_response_state(&self) -> &ResponseState {
+        &self.response_state
+    }
+
+    /// Check if the request is still pending (no response sent yet)
+    pub fn is_pending(&self) -> bool {
+        matches!(self.response_state, ResponseState::NotHandled)
     }
 }

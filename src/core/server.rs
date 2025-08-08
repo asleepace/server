@@ -1,6 +1,7 @@
 use crate::core::cli;
 use crate::core::connections::Connections;
 use crate::core::http::{HttpRequest, HttpResponse};
+use crate::core::http::http_request::ResponseState;
 use crate::core::middleware::{Middleware, MiddlewareService};
 use crate::core::state::SharedState;
 use crate::core::util::get_mime_type;
@@ -111,11 +112,53 @@ impl Server {
     /// all routes have been defined, but before the server is started.
     fn prepare(&mut self) {
         let routes = self.routes.clone();
-        // NOTE: This is a bit hacky, but we register the last middleware as a route handler
-        // to ensure that the middleware chain is executed before the route handler.
-        self.middleware(move |req, next| match routes.get(&req.url()) {
-            None => req.serve_static_file().and_then(|_| next(req)),
-            Some(handler) => handler(req),
+        
+        // Register route handler middleware
+        self.middleware(move |req, next| {
+            if req.is_response_sent() {
+                return next(req);
+            }
+
+            match routes.get(&req.url()) {
+                None => {
+                    // No route matched, continue to next middleware
+                    next(req)
+                }
+                Some((handler, _parameters)) => {
+                    // Store parameters in request for handler access
+                    // TODO: Add parameter access to HttpRequest
+                    match handler(req) {
+                        Ok(status_code) => {
+                            req.mark_response_sent(status_code);
+                            Ok(status_code)
+                        }
+                        Err(err) => {
+                            let err_msg = err.to_string();
+                            req.mark_error(std::io::Error::new(err.kind(), err_msg.clone()));
+                            Err(std::io::Error::new(err.kind(), err_msg))
+                        }
+                    }
+                }
+            }
+        });
+
+        // Register static file middleware as fallback
+        self.middleware(|req, next| {
+            if req.is_response_sent() {
+                return next(req);
+            }
+
+            // Try to serve static file
+            match req.serve_static_file() {
+                Ok(_) => {
+                    req.mark_response_sent(200);
+                    Ok(200)
+                }
+                Err(_) => {
+                    // If static file serving fails, continue to next middleware
+                    next(req)
+                }
+            }
         });
     }
 
@@ -157,13 +200,26 @@ impl Server {
 
         // 2. pipe the request through the middleware chain and get the status code
         let status_code = match self.middlewares.write(|mid| (*mid).handle(&mut request)) {
-            Err(err) => panic!("[server] error on handle: {}", err.to_string()),
+            Err(err) => {
+                eprintln!("[server] middleware error: {}", err);
+                request.mark_error(err);
+                return;
+            }
             Ok(code) => code,
         };
 
-        // 3. handle the response based on the status code, then perhaps remove the stream
-        // when finished.
-        println!("[server] finished with code: {}", status_code);
+        // 3. handle the response based on the status code
+        match request.get_response_state() {
+            ResponseState::Handled(status) => {
+                println!("[server] finished with code: {}", status);
+            }
+            ResponseState::Error(err) => {
+                eprintln!("[server] request error: {}", err);
+            }
+            ResponseState::NotHandled => {
+                println!("[server] request not handled, status code: {}", status_code);
+            }
+        }
     }
 
     /// Register a route handler for a static file.

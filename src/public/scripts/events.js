@@ -1,13 +1,16 @@
 // Shared SSE helpers (ESM)
+import { AsciiTitle3D } from '../components/ascii.js'
 export function parseEvent(src) {
   const text = (src?.data ?? '').trim().split(',').join(' ')
   const name = src?.event || 'message'
   return `${name}: ${text}`
 }
 
-export function createRowElement({ tagName = 'p', text = '', style } = {}) {
+export function createRowElement({ tagName = 'p', text = '', style, html, className } = {}) {
   const element = document.createElement(tagName)
-  element.textContent = text
+  if (className) element.className = className
+  if (html != null) element.innerHTML = html
+  else element.textContent = text
   if (style) element.style = style
   return element
 }
@@ -55,6 +58,19 @@ export function watchEvents(
     return output
   }
 
+  // formatting helpers
+  const escapeBasic = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  function formatPrompt(sender, content, ts = new Date()) {
+    const time = ts.toLocaleTimeString()
+    const senderLabel = String(sender || 'system')
+    const safe = escapeBasic(content)
+    return `<span style="color:#8a8f98">${time}</span> <span style="color:#7efc7a">@${senderLabel}</span> <span style="color:#9aa0a6">&raquo;&raquo;</span> <span>${safe}</span>`
+  }
+  function finalizeRenderText(raw, sender, ts) {
+    if (raw && typeof raw === 'object' && typeof raw.html === 'string') return raw.html
+    return formatPrompt(sender, String(raw), ts)
+  }
+
   // Maintain a soft cap on displayed rows
   function enforceCap() {
     if (!container) return
@@ -71,26 +87,38 @@ export function watchEvents(
   }
 
   eventSource.onopen = (event) => {
-    const elem = createRowElement({ text: 'connected!', style: 'color: green' })
-    insertChildAndScroll(elem)
+    const href = (typeof location !== 'undefined') ? location.href : ''
+    // ASCII banner
+    insertChildAndScroll(createRowElement({ tagName: 'pre', html: escapeBasic(AsciiTitle3D), className: 'ascii' }))
+    // Welcome lines
+    const now = Date.now()
+    const lines = [
+      ':: ~~~ Welcome to ConsoleDump ~~~ ::',
+      `:: Session ${href} ::`,
+      ':: Pipe your data here from anywhere to debug in realtime.',
+    ]
+    lines.forEach((line) => insertChildAndScroll(createRowElement({ html: finalizeRenderText(line, 'system') })))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText(`connected to ${href}`, 'system', new Date(now)) }))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText('type @help below to see commands...', 'system', new Date(now + 1000)) }))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText('happy debugging!', 'system', new Date(now + 2000)) }))
   }
 
   eventSource.addEventListener('base64', (event) => {
     try {
       const decoded = atob(event.data)
-      const text = applyHooks(decoded)
-      const elem = createRowElement({ text })
+      const result = applyHooks(decoded)
+      const elem = createRowElement({ html: finalizeRenderText(result, 'server') })
       insertChildAndScroll(elem)
     } catch (e) {
-      const elem = createRowElement({ text: '[base64 decode error]' })
+      const elem = createRowElement({ html: finalizeRenderText('[base64 decode error]', 'system') })
       insertChildAndScroll(elem)
     }
   })
 
   eventSource.onmessage = (event) => {
     const data = parseEvent(event)
-    const text = applyHooks(data)
-    const elem = createRowElement({ text })
+    const result = applyHooks(data)
+    const elem = createRowElement({ html: finalizeRenderText(result, 'server') })
     insertChildAndScroll(elem)
   }
 
@@ -131,7 +159,7 @@ export function watchEvents(
       return
     }
     // default behavior: log to stream if available
-    insertChildAndScroll(createRowElement({ text: `[client] ${payload}`, style: 'color:#7efc7a' }))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText(payload, 'client') }))
   })
 
   eventSource.onerror = () => {

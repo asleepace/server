@@ -33,6 +33,10 @@ export const AsciiSymbols = {
     VerticalBarMedium: '&#10073;',
     /** # ❚ Heavy vertical bar */
     VerticalBarHeavy: '&#10074;',
+    /** # ➕ Heavy plus (add) */
+    Plus: '&#10133;',
+    /** # ☰ Hamburger/menu */
+    Menu: '&#9776;',
     /** # ➩ Right arrow with hook */
     ArrowRightHook: '&#10153;',
     /** # ❴ Medium left-pointing angle bracket ornament */
@@ -306,6 +310,7 @@ export class $ {
                 this._renderFn = renderFn.bind(this)
                 this._mountedCallbacks = []
                 this._methods = {}
+                this._delegated = new Map() // eventType -> [ { selector, handler } ]
             }
 
             onMounted(mountedCallback) {
@@ -315,18 +320,85 @@ export class $ {
                 this._mountedCallbacks.push(mountedCallback)
             }
 
+            // Public alias for method map for ergonomic direct assignment in components
+            get methods() { return this._methods }
+            set methods(obj) { this._methods = obj || {} }
+
+            // Register one or more methods
+            onMethod(nameOrMap, maybeFn) {
+                if (!nameOrMap) return
+                // onMethod('name', fn)
+                if (typeof nameOrMap === 'string' && typeof maybeFn === 'function') {
+                    this._methods[nameOrMap] = maybeFn.bind(this)
+                    return
+                }
+                // onMethod({ name: fn, ... })
+                if (nameOrMap && typeof nameOrMap === 'object' && !Array.isArray(nameOrMap)) {
+                    Object.entries(nameOrMap).forEach(([key, fn]) => {
+                        if (typeof fn === 'function') this._methods[key] = fn.bind(this)
+                    })
+                    return
+                }
+                // onMethod((host) => ({ name(){...} })) or onMethod((host) => void)
+                if (typeof nameOrMap === 'function') {
+                    try {
+                        const result = nameOrMap.call(this, this)
+                        if (result && typeof result === 'object') {
+                            Object.entries(result).forEach(([key, fn]) => {
+                                if (typeof fn === 'function') this._methods[key] = fn.bind(this)
+                            })
+                        }
+                    } catch (e) { console.warn('[components] onMethod callback error:', e) }
+                }
+            }
+
+            // Alias: method('name', fn)
+            method(name, fn) { this.onMethod(name, fn) }
+
+            // Delegated events: bind once per event type on shadowRoot
+            onEvent(eventType, cssSelector, handler) {
+                if (!eventType || !cssSelector || typeof handler !== 'function') return
+                const type = String(eventType)
+                if (!this._delegated.has(type)) this._delegated.set(type, [])
+                const arr = this._delegated.get(type)
+                arr.push({ selector: cssSelector, handler })
+                // Ensure listener installed once
+                if (!this.__delegatedInstalled) this.__delegatedInstalled = new Set()
+                if (!this.__delegatedInstalled.has(type)) {
+                    this.__delegatedInstalled.add(type)
+                    this.shadowRoot.addEventListener(type, (ev) => {
+                        const list = this._delegated.get(type) || []
+                        const target = ev.target
+                        for (const { selector, handler } of list) {
+                            if (target && target.closest && target.closest(selector)) {
+                                try { handler.call(this, ev) } catch (e) { console.warn(`[components] delegated ${type} handler error:`, e) }
+                            }
+                        }
+                    })
+                }
+            }
+
+            // Dispatch a CustomEvent from host or provided target
+            dispatch(name, detail, target) {
+                try {
+                    const evt = $.event(String(name), detail)
+                        ; (target || this).dispatchEvent(evt)
+                } catch (e) { console.warn('[components] dispatch error:', e) }
+            }
+
             render() {
                 try {
-                    const result = this._renderFn({
+                    const html = this._renderFn({
                         state: this.state,
-                        onMounted: this.onMounted.bind(this)
+                        onMounted: this.onMounted.bind(this),
+                        onMethod: this.onMethod.bind(this),
+                        method: this.method.bind(this),
+                        onEvent: this.onEvent.bind(this),
+                        dispatch: this.dispatch.bind(this)
                     })
-                    if (typeof result === 'string') return result || ""
-                    if (result && typeof result === 'object') {
-                        const { html = "", methods = {} } = result
-                        this._methods = methods || {}
-                        return html
-                    }
+                    if (typeof html === 'string') return this.#linkInlineHandlers(html || "")
+                    // Enforce string-only returns
+                    console.warn(`[components] ${elemName} should return an HTML string; got`, typeof html)
                     return ""
                 } catch (e) {
                     console.error(`Error rendering ${elemName}:`, e)
@@ -334,47 +406,106 @@ export class $ {
                 }
             }
 
+            renderToShadow() {
+                // Call base renderer to update shadow DOM, then bind handlers for this render
+                super.renderToShadow()
+                try {
+                    const root = this.shadowRoot
+                    if (!root) return
+                    const all = root.querySelectorAll('*')
+                    all.forEach((el) => {
+                        Array.from(el.attributes).forEach(attr => {
+                            const name = attr.name.toLowerCase()
+                            const val = attr.value
+                            const isOn = name.startsWith('on')
+                            const isDataOn = name.startsWith('data-on')
+                            if (!isOn && !isDataOn) return
+                            const eventName = isOn ? name.slice(2) : name.slice(8)
+                            if (!val) return
+                            // Supported forms:
+                            // 1) @handlerName
+                            // 2) @method:handlerName or method:handlerName
+                            // 3) @event:eventName or event:eventName
+                            // 4) @event:@attrName to read from element attribute (e.g., @id)
+                            const raw = String(val).trim()
+                            const lower = raw.replace(/^@/, '')
+                            let bound = false
+                            // method:NAME
+                            const m = lower.match(/^method:([a-zA-Z_$][\w$]*)$/)
+                            if (m) {
+                                const fn = this._methods && this._methods[m[1]]
+                                if (typeof fn === 'function') {
+                                    el.removeAttribute(attr.name)
+                                    el.addEventListener(eventName, fn.bind(this))
+                                    bound = true
+                                }
+                            }
+                            // event:NAME or event:@attr
+                            if (!bound) {
+                                const evm = lower.match(/^event:(.+)$/)
+                                if (evm) {
+                                    const spec = evm[1]
+                                    el.removeAttribute(attr.name)
+                                    el.addEventListener(eventName, (e) => {
+                                        let eventToDispatch = spec
+                                        if (spec.startsWith('@')) {
+                                            const key = spec.slice(1)
+                                            // Prefer host value, fallback to element attribute
+                                            const hostVal = this.getAttribute(key) ?? (this[key] != null ? String(this[key]) : '')
+                                            eventToDispatch = hostVal || el.getAttribute(key) || ''
+                                        }
+                                        if (eventToDispatch) this.dispatch(eventToDispatch, { originalEvent: e, target: el })
+                                    })
+                                    bound = true
+                                }
+                            }
+                            // bare handler name (from @handler or handler())
+                            if (!bound) {
+                                const bare = raw.replace(/^@/, '').replace(/\(\)$/, '')
+                                const fn = this._methods && this._methods[bare]
+                                if (typeof fn === 'function') {
+                                    el.removeAttribute(attr.name)
+                                    el.addEventListener(eventName, fn.bind(this))
+                                    bound = true
+                                }
+                            }
+                            if (!bound) {
+                                // Leave attribute intact for visibility but warn once
+                                console.warn(`[components] unbound handler for ${name}="${val}" on`, el)
+                            }
+                        })
+                    })
+                } catch (err) {
+                    console.warn('[components] link step (render-time) failed:', err)
+                }
+            }
+
+            // Replace @onclick="method()" with a safe data-onclick and leave original for clarity
+            #linkInlineHandlers(html) {
+                if (!html || typeof html.replace !== 'function') return html
+                // Support @onclick="handler()" and @onclick="@handler" forms
+                // Convert to data-onclick="@handler" so connectedCallback can bind
+                return html
+                    // on*="@handler"
+                    .replace(/\s(on[a-z]+)="@([a-zA-Z_$][\w$]*)"/g, ' data-$1="@$2"')
+                    // @on*="handler()" or @on*="@handler" → data-on*
+                    .replace(/\s@on([a-z]+)="([a-zA-Z_$][\w$]*)\(\)"/g, ' data-on$1="@$2"')
+                    .replace(/\s@on([a-z]+)="@([a-zA-Z_$][\w$]*)"/g, ' data-on$1="@$2"')
+                    // Generic @event="..." → data-onevent (e.g., @click="...")
+                    .replace(/\s@([a-z]+)="([^"]+)"/g, ' data-on$1="$2"')
+                // Allow method:NAME and event:SPEC to pass through unchanged; we only convert attribute name to data-on*
+            }
+
             connectedCallback() {
                 super.connectedCallback()
-                // Execute link step, then run onMounted callbacks once per element
-                queueMicrotask(() => {
-                    // Link step: bind @method handlers declared as inline on*="@method"
-                    try {
-                        const root = this.shadowRoot
-                        if (root) {
-                            const all = root.querySelectorAll('*')
-                            all.forEach((el) => {
-                                Array.from(el.attributes).forEach(attr => {
-                                    const name = attr.name.toLowerCase()
-                                    const val = attr.value
-                                    // Support both on* and data-on* to avoid inline event attribute parsing issues
-                                    const isOn = name.startsWith('on')
-                                    const isDataOn = name.startsWith('data-on')
-                                    if (!isOn && !isDataOn) return
-                                    const eventName = isOn ? name.slice(2) : name.slice(8)
-                                    if (!val || !val.startsWith('@')) return
-                                    const handlerName = val.slice(1)
-                                    const fn = this._methods && this._methods[handlerName]
-                                    if (typeof fn === 'function') {
-                                        el.removeAttribute(attr.name)
-                                        el.addEventListener(eventName, fn.bind(this))
-                                    } else {
-                                        console.warn(`[components] missing handler @${handlerName} for`, name, el)
-                                    }
-                                })
-                            })
-                        }
-                    } catch (err) {
-                        console.warn('[components] link step failed:', err)
-                    }
-                    if (!this.__mountedGuard) {
-                        this.__mountedGuard = true
-                        const cbs = this._mountedCallbacks.splice(0)
-                        cbs.forEach(callback => {
-                            try { callback.call(this, this) } catch (e) { console.error(`Error in onMounted callback for ${elemName}:`, e) }
-                        })
-                    }
-                })
+                // Run onMounted callbacks once (render already happened in base constructor path)
+                if (!this.__mountedGuard) {
+                    this.__mountedGuard = true
+                    const cbs = this._mountedCallbacks.splice(0)
+                    cbs.forEach(callback => {
+                        try { callback.call(this, this) } catch (e) { console.error(`Error in onMounted callback for ${elemName}:`, e) }
+                    })
+                }
             }
         })
     }

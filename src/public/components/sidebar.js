@@ -1,6 +1,6 @@
 import { $ } from './index.js'
 
-export default function Sidebar({ state, onMounted }) {
+export default function Sidebar({ state, onMounted, onMethod }) {
   const initialTheme = (state['data-theme'] || state.theme || 'dark').toLowerCase()
   const initialWidth = state.width || '420px'
   const minAttr = state.min || '280'
@@ -12,7 +12,7 @@ export default function Sidebar({ state, onMounted }) {
         display: flex;
         flex-direction: column;
         position: relative;
-        overflow: visible; /* allow handle to extend past seam */
+        overflow: hidden;
         box-sizing: border-box;
         width: ${initialWidth};
         min-width: ${/v?w$/.test(minAttr) ? minAttr : `${minAttr}px`};
@@ -33,19 +33,19 @@ export default function Sidebar({ state, onMounted }) {
 
       .handle {
         position: absolute;
-        left: 0; /* keep within host hit area */
+        left: 0;
         top: 0;
         bottom: 0;
-        width: 14px;
+        width: 10px;
         cursor: col-resize;
-        background: linear-gradient(90deg, transparent 0 50%, var(--border) 50% 100%);
-        opacity: 0.3;
+        background: transparent;
+        opacity: 1;
         z-index: 10;
         pointer-events: auto;
         touch-action: none;
       }
 
-      :host(:hover) .handle { opacity: 0.5; }
+      :host(:hover) .handle { background: transparent; }
 
       .content { display:block; padding: 18px 32px 22px 32px; overflow:auto; max-height: 100%; }
       .content * { box-sizing: border-box; max-width: 100%; }
@@ -113,71 +113,70 @@ export default function Sidebar({ state, onMounted }) {
     if (open === '0') host.style.display = 'none'
   })
 
-  const methods = {
-    startResize(e) {
-      try {
-        if (e.cancelable) e.preventDefault()
-        e.stopPropagation()
-        const host = /** @type {HTMLElement} */ (this)
-        const type = e.type || ''
-        const isPointer = type.startsWith('pointer')
-        const isTouch = type.startsWith('touch')
-        const isMouse = type === 'mousedown'
+  onMethod('startResize', function (e) {
+    try {
+      if (e.cancelable) e.preventDefault()
+      e.stopPropagation()
+      const host = /** @type {HTMLElement} */ (this)
+      const type = e.type || ''
+      const isPointer = type.startsWith('pointer')
+      const isTouch = type.startsWith('touch')
+      const isMouse = type === 'mousedown'
 
-        if (isPointer && typeof e.pointerId === 'number' && e.target && typeof e.target.setPointerCapture === 'function') {
-          try { e.target.setPointerCapture(e.pointerId) } catch { }
-        }
-
-        const getX = (ev) => (ev.touches && ev.touches[0] ? ev.touches[0].clientX : ev.clientX)
-        const startX = getX(e)
-        const startWidth = parseInt(getComputedStyle(host).width, 10)
-        const minPx = /v?w$/.test(minAttr) ? 280 : parseInt(minAttr, 10)
-        const maxPx = /v?w$/.test(maxAttr) ? Math.round(window.innerWidth * 0.65) : parseInt(maxAttr, 10)
-
-        const cleanups = []
-        const add = (target, evName, handler, opts) => { target.addEventListener(evName, handler, opts); cleanups.push(() => target.removeEventListener(evName, handler, opts)) }
-
-        const onMove = (ev) => {
-          if (ev.cancelable) ev.preventDefault()
-          const dx = startX - getX(ev)
-          const next = clampWidth(startWidth + dx, minPx, maxPx)
-          applyWidth.call(host, `${next}px`)
-        }
-        const onUp = () => {
-          cleanups.forEach(fn => fn())
-          $.store.set('sidebar_width', getComputedStyle(host).width)
-          document.body.style.userSelect = ''
-          document.body.style.cursor = ''
-        }
-
-        if (isPointer) {
-          add(window, 'pointermove', onMove)
-          add(window, 'pointerup', onUp)
-          add(window, 'pointercancel', onUp)
-        } else if (isTouch) {
-          add(window, 'touchmove', onMove, { passive: false })
-          add(window, 'touchend', onUp)
-          add(window, 'touchcancel', onUp)
-        } else if (isMouse) {
-          add(window, 'mousemove', onMove)
-          add(window, 'mouseup', onUp)
-        }
-
-        document.body.style.userSelect = 'none'
-        document.body.style.cursor = 'col-resize'
-      } catch (err) {
-        console.warn('[cd-sidebar] resize error:', err)
+      if (isPointer && typeof e.pointerId === 'number' && e.target && typeof e.target.setPointerCapture === 'function') {
+        try { e.target.setPointerCapture(e.pointerId) } catch { }
       }
-    },
-    toggleTheme() {
-      const cur = this.getAttribute('data-theme') || 'light'
-      const nx = cur === 'light' ? 'dark' : 'light'
-      this.setAttribute('data-theme', nx)
-      $.store.set('sidebar_theme', nx)
-    }
-  }
 
-  return { html, methods }
+      const getX = (ev) => (ev.touches && ev.touches[0] ? ev.touches[0].clientX : ev.clientX)
+      const startX = getX(e)
+      const startWidth = parseInt(getComputedStyle(host).width, 10)
+      const minPx = /v?w$/.test(minAttr) ? 280 : parseInt(minAttr, 10)
+      const maxPx = /v?w$/.test(maxAttr) ? Math.round(window.innerWidth * 0.65) : parseInt(maxAttr, 10)
+
+      const cleanups = []
+      const add = (target, evName, handler, opts) => { target.addEventListener(evName, handler, opts); cleanups.push(() => target.removeEventListener(evName, handler, opts)) }
+
+      const onMove = (ev) => {
+        if (ev.cancelable) ev.preventDefault()
+        const dx = startX - getX(ev)
+        const next = clampWidth(startWidth + dx, minPx, maxPx)
+        applyWidth.call(host, `${next}px`)
+      }
+      const onUp = () => {
+        cleanups.forEach(fn => fn())
+        $.store.set('sidebar_width', getComputedStyle(host).width)
+        document.body.style.userSelect = ''
+        document.body.style.cursor = ''
+      }
+
+      if (isPointer) {
+        add(window, 'pointermove', onMove)
+        add(window, 'pointerup', onUp)
+        add(window, 'pointercancel', onUp)
+      } else if (isTouch) {
+        add(window, 'touchmove', onMove, { passive: false })
+        add(window, 'touchend', onUp)
+        add(window, 'touchcancel', onUp)
+      } else if (isMouse) {
+        add(window, 'mousemove', onMove)
+        add(window, 'mouseup', onUp)
+      }
+
+      document.body.style.userSelect = 'none'
+      document.body.style.cursor = 'col-resize'
+    } catch (err) {
+      console.warn('[cd-sidebar] resize error:', err)
+    }
+  })
+
+  onMethod('toggleTheme', function () {
+    const cur = this.getAttribute('data-theme') || 'light'
+    const nx = cur === 'light' ? 'dark' : 'light'
+    this.setAttribute('data-theme', nx)
+    $.store.set('sidebar_theme', nx)
+  })
+
+  return html
 }
 
 

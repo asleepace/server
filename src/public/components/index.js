@@ -80,7 +80,6 @@ const sharedStyles = (function () {
 export class BaseElement extends HTMLElement {
     constructor() {
         super()
-        console.log('@component base constructor!')
         this.attachShadow({ mode: 'open' })
         // Insert shared styles on construction; subsequent renders must preserve them
         this.shadowRoot.appendChild(sharedStyles.cloneNode(true))
@@ -88,14 +87,12 @@ export class BaseElement extends HTMLElement {
     }
 
     onMounted(callbackFn) {
-        console.log('@component mounted (base)', this)
         if (this.isMounted) return
         this.isMounted = true
         callbackFn.call(this)
     }
 
     render() {
-        console.log('@component base render')
         return `<slot></slot>`
     }
 
@@ -115,8 +112,7 @@ export class BaseElement extends HTMLElement {
     connectedCallback() {
         if (!this.isConnected) return
         this.renderToShadow()
-        // Call onMounted after rendering is complete
-        queueMicrotask(() => this.onMounted(() => { }))
+        // onMounted is coordinated by $.define subclass after link step
     }
 
     attributeChangedCallback() {
@@ -313,13 +309,10 @@ export class $ {
             }
 
             onMounted(mountedCallback) {
-                if (this.isMounted) {
-                    // Already mounted, call immediately
-                    mountedCallback.call(this, this)
-                } else {
-                    // Store callback for later
-                    this._mountedCallbacks.push(mountedCallback)
-                }
+                if (typeof mountedCallback !== 'function') return
+                if (this.__mountedGuard) return
+                // Defer until link step binds methods and initial render is complete
+                this._mountedCallbacks.push(mountedCallback)
             }
 
             render() {
@@ -343,9 +336,8 @@ export class $ {
 
             connectedCallback() {
                 super.connectedCallback()
-
-                // Execute all stored mounted callbacks
-                setTimeout(() => {
+                // Execute link step, then run onMounted callbacks once per element
+                queueMicrotask(() => {
                     // Link step: bind @method handlers declared as inline on*="@method"
                     try {
                         const root = this.shadowRoot
@@ -355,12 +347,15 @@ export class $ {
                                 Array.from(el.attributes).forEach(attr => {
                                     const name = attr.name.toLowerCase()
                                     const val = attr.value
-                                    if (!name.startsWith('on')) return
+                                    // Support both on* and data-on* to avoid inline event attribute parsing issues
+                                    const isOn = name.startsWith('on')
+                                    const isDataOn = name.startsWith('data-on')
+                                    if (!isOn && !isDataOn) return
+                                    const eventName = isOn ? name.slice(2) : name.slice(8)
                                     if (!val || !val.startsWith('@')) return
                                     const handlerName = val.slice(1)
                                     const fn = this._methods && this._methods[handlerName]
                                     if (typeof fn === 'function') {
-                                        const eventName = name.slice(2)
                                         el.removeAttribute(attr.name)
                                         el.addEventListener(eventName, fn.bind(this))
                                     } else {
@@ -372,18 +367,14 @@ export class $ {
                     } catch (err) {
                         console.warn('[components] link step failed:', err)
                     }
-                    if (!this.isMounted) {
-                        this.isMounted = true
-                        this._mountedCallbacks.forEach(callback => {
-                            try {
-                                callback.call(this, this)
-                            } catch (e) {
-                                console.error(`Error in onMounted callback for ${elemName}:`, e)
-                            }
+                    if (!this.__mountedGuard) {
+                        this.__mountedGuard = true
+                        const cbs = this._mountedCallbacks.splice(0)
+                        cbs.forEach(callback => {
+                            try { callback.call(this, this) } catch (e) { console.error(`Error in onMounted callback for ${elemName}:`, e) }
                         })
-                        this._mountedCallbacks = []
                     }
-                }, 0)
+                })
             }
         })
     }

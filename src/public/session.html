@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <title>Server</title>
+    <title>ConsoleDump</title>
     <link rel="icon" type="image/x-icon" href="/favicon.png" />
     <link rel="stylesheet" type="text/css" href="/index.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -66,6 +66,10 @@
             flex: 1;
         }
 
+        * {
+            transition: all 0.1s;
+        }
+
         html,
         body {
             margin: 0;
@@ -89,59 +93,7 @@
             flex: 1;
         }
 
-        aside {
-            position: relative;
-            top: 0;
-            display: flex;
-            flex-direction: column;
-            max-width: 50em;
-            overflow-x: hidden;
-            white-space: prewrap;
-            text-wrap: wrap;
-            z-index: 100;
-        }
-
-        aside * {
-            box-sizing: border-box;
-        }
-
-        aside {
-            padding: 18px 16px 20px 16px;
-        }
-
-        aside h2 {
-            font-family: var(--font-headings);
-            font-size: 1.3rem;
-            margin: 0 0 10px 0;
-            color: var(--text-color);
-            letter-spacing: 0.2px;
-        }
-
-        aside h3,
-        aside h4 {
-            font-family: var(--font-ui);
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: var(--text-color);
-            margin: 12px 0 8px 0;
-        }
-
-        aside p {
-            font-size: 0.85rem;
-            color: var(--muted-text);
-            line-height: 1.5;
-            margin: 6px 0;
-        }
-
-        aside small {
-            font-size: 0.78rem;
-            color: var(--muted-text);
-        }
-
-        aside code,
-        aside pre {
-            color: var(--code-text-color);
-        }
+        /* Sidebar styles are encapsulated within <cd-sidebar> */
     </style>
     <style>
         /* Accessibility improvements for the log */
@@ -152,7 +104,7 @@
     </style>
 </head>
 
-<body>
+<body data-page="session">
     <div class="scroll-container">
         <main id="layout" style="--sidebar: 420px;">
             <section id="left-pane" style="display:flex; flex-direction:column; flex:1; min-width:0;">
@@ -166,11 +118,7 @@
                         style="width:100%; font-family: var(--font-mono); font-size: 14px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background: var(--code-back-color); color: var(--code-text-color);" />
                 </div>
             </section>
-            <aside id="sidebar" data-theme="light"
-                style="width: var(--sidebar); min-width: 280px; max-width: 65vw; overflow:auto; position: relative; z-index:100;">
-                <div id="drag-hint"
-                    style="position:absolute; left:0; top:0; bottom:0; width:8px; cursor: col-resize; background: var(--border); opacity:0.3">
-                </div>
+            <cd-sidebar id="sidebar" data-theme="light" width="var(--sidebar)" min="280" max="65vw">
                 <h2 id="session-title">Data Stream</h2>
                 <cd-tabs tabs="instructions,settings,hooks" active="instructions">
                     <section slot="instructions">
@@ -192,10 +140,13 @@
                         <p>Theme, font size, auto-scroll, and retention controls can go here.</p>
                     </section>
                     <section slot="hooks">
-                        <p>Add small JS preprocessors to reformat incoming data before display.</p>
+                        <p class="muted" style="margin:0 0 8px 0">Hooks run on the client to transform incoming
+                            messages. Each hook defines <code>transform(ctx, text)</code> and runs sequentially when
+                            enabled.</p>
+                        <cd-hooks></cd-hooks>
                     </section>
                 </cd-tabs>
-            </aside>
+            </cd-sidebar>
         </main>
     </div>
     <script type="module" src="/client.js"></script>

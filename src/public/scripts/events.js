@@ -32,6 +32,29 @@ export function watchEvents(
   const eventSource = new EventSource(config.eventSource)
   const container = config.targetElement ? document.getElementById(config.targetElement) : null
 
+  // Load client-side hooks from localStorage (array of {id,name,code,enabled})
+  function getEnabledHooks() {
+    try {
+      const hooks = JSON.parse(localStorage.getItem('cd_hooks') || '[]')
+      return hooks.filter(h => h && h.enabled && typeof h.code === 'string')
+    } catch { return [] }
+  }
+
+  function applyHooks(text) {
+    const hooks = getEnabledHooks()
+    let output = text
+    for (const h of hooks) {
+      try {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function('ctx', 'text', `${h.code}; return (typeof transform==='function') ? transform(ctx, text) : text;`)
+        output = fn({ name: h.name }, output)
+      } catch (e) {
+        console.warn('[hook] error in hook', h.name, e)
+      }
+    }
+    return output
+  }
+
   // Maintain a soft cap on displayed rows
   function enforceCap() {
     if (!container) return
@@ -55,7 +78,8 @@ export function watchEvents(
   eventSource.addEventListener('base64', (event) => {
     try {
       const decoded = atob(event.data)
-      const elem = createRowElement({ text: decoded })
+      const text = applyHooks(decoded)
+      const elem = createRowElement({ text })
       insertChildAndScroll(elem)
     } catch (e) {
       const elem = createRowElement({ text: '[base64 decode error]' })
@@ -65,7 +89,8 @@ export function watchEvents(
 
   eventSource.onmessage = (event) => {
     const data = parseEvent(event)
-    const elem = createRowElement({ text: data })
+    const text = applyHooks(data)
+    const elem = createRowElement({ text })
     insertChildAndScroll(elem)
   }
 
@@ -74,6 +99,10 @@ export function watchEvents(
     eventSource.addEventListener(config.hotReloadEventName || 'hot-reload', () => {
       try {
         // Debounce reloads in case of burst events
+        const now = Date.now()
+        const last = Number(localStorage.getItem('cd_hr_ts') || '0')
+        if (now - last < 1500) return
+        localStorage.setItem('cd_hr_ts', String(now))
         if (watchEvents.__reloading) return
         watchEvents.__reloading = true
         setTimeout(() => (watchEvents.__reloading = false), 1000)

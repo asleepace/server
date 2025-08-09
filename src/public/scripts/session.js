@@ -14,15 +14,11 @@ export function bootstrapSessionPage() {
     const base = `${location.protocol}//${location.host}`
     const curl = `curl -X POST ${base}/s/${sessionKey} \\\n  -H 'Content-Type: text/plain' \\\n  --data-binary 'hello world'`
     const js = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'text/plain' },\n  body: 'hello world'\n})`
-    const ts = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ msg: 'hello' })\n})`
-    const node = `import axios from 'axios'\nawait axios.post('${base}/s/${sessionKey}', 'hello world', { headers: { 'Content-Type': 'text/plain' } })`
     const py = `import requests\nrequests.post('${base}/s/${sessionKey}', data='hello world', headers={'Content-Type':'text/plain'})`
 
     const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text }
     setText('curl-snippet', curl)
     setText('js-snippet', js)
-    setText('ts-snippet', ts)
-    setText('node-snippet', node)
     setText('py-snippet', py)
 
     // Sidebar handlers (moved from inline scripts)

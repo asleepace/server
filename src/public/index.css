@@ -1,59 +1,67 @@
-:root {
-  /* brand & typography */
-  --font-ui: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
-    "Apple Color Emoji", "Segoe UI Emoji";
-  --font-mono: Menlo, ui-monospace, SFMono-Regular, Consolas, "Liberation Mono",
-    monospace;
-  --font-headings: "Iowan Old Style", "Palatino Linotype", "URW Palladio L",
-    P052, serif;
+@layer reset, tokens, base, layout, utilities, overrides;
 
-  /* light theme (default) */
-  --background: #faeed1; /* bisque */
-  --background-2: #f2e2b8; /* warmer shade */
-  --surface: #fff7e3; /* panels */
-  --text-color: #282828; /* rich black */
-  --muted-text: #555;
-  --tint-color: #607274; /* teal/green gray */
-  --tint-highlight: #405254;
-  --green-accent: #7efc7a;
-  --border: #c5b998;
-  --shadow: rgba(0, 0, 0, 0.25);
+/* Default to dark theme */
+@layer tokens {
+  :root,
+  [data-theme="dark"] {
+    /* brand & typography */
+    --font-ui: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+      "Apple Color Emoji", "Segoe UI Emoji";
+    --font-mono: Menlo, ui-monospace, SFMono-Regular, Consolas,
+      "Liberation Mono", monospace;
+    --font-headings: "Iowan Old Style", "Palatino Linotype", "URW Palladio L",
+      P052, serif;
 
-  /* code blocks */
-  --code-back-color: #1c1c1e; /* near-black */
-  --code-text-color: #d7d7d8; /* soft gray */
-  --code-bord-color: #444444; /* gutter */
-  --code-pink-color: #ff79c6; /* light pink */
-  --code-blue-color: #8be9fd; /* light blue */
-  --code-pale-color: #f1fa8c; /* light yellow */
+    /* dark tokens */
+    --background: #111214;
+    --background-2: #0b0c0e;
+    --surface: #15171a;
+    --text-color: #e6e6e6;
+    --muted-text: #aaaaaa;
+    --muted-text-darker: #999999;
+    --tint-color: #a0c3c4;
+    --tint-highlight: #c6edef;
+    --green-accent: #7efc7a;
+    --border: #3a3d42;
+    --shadow: rgba(0, 0, 0, 0.5);
 
-  /* nav */
-  --nav-height: 48px;
+    /* code blocks */
+    --code-back-color: #0e0f11;
+    --code-text-color: #f0f0f2;
+    --code-bord-color: #3a3d42;
+    --code-pink-color: #ff79c6; /* light pink */
+    --code-blue-color: #8be9fd; /* light blue */
+    --code-pale-color: #f1fa8c; /* light yellow */
 
-  /* scrollbars */
-  --scrollbar-size: 10px;
-  --scrollbar-thumb: var(--border);
-  --scrollbar-track: var(--surface);
-}
+    /* nav */
+    --nav-height: 48px;
 
-[data-theme="dark"] {
-  --background: #111214;
-  --background-2: #0b0c0e;
-  --surface: #15171a;
-  --text-color: #e6e6e6;
-  --muted-text: #aaa;
-  --tint-color: #a0c3c4;
-  --tint-highlight: #c6edef;
-  --border: #3a3d42;
-  --shadow: rgba(0, 0, 0, 0.5);
+    /* scrollbars */
+    --scrollbar-size: 10px;
+    --scrollbar-thumb: #3a3d42;
+    --scrollbar-track: var(--surface);
+    --green-accent: #7efc7a;
+  }
 
-  --code-back-color: #0e0f11;
-  --code-text-color: #f0f0f2;
-  --code-bord-color: #3a3d42;
+  /* Light theme override */
+  [data-theme="light"] {
+    --background: #faeed1; /* bisque */
+    --background-2: #f2e2b8; /* warmer shade */
+    --surface: #fff7e3; /* panels */
+    --text-color: #282828; /* rich black */
+    --muted-text: #555;
+    --tint-color: #607274; /* teal/green gray */
+    --tint-highlight: #405254;
+    --border: #c5b998;
+    --shadow: rgba(0, 0, 0, 0.25);
 
-  --scrollbar-thumb: #3a3d42;
-  --scrollbar-track: var(--surface);
-  --green-accent: #7efc7a;
+    --code-back-color: #1c1c1e;
+    --code-text-color: #d7d7d8;
+    --code-bord-color: #444444;
+
+    --scrollbar-thumb: var(--border);
+    --scrollbar-track: var(--surface);
+  }
 }
 
 /* Display-P3 color, when supported. */
@@ -67,61 +75,81 @@
     }
 } */
 
-html {
-  font-family: var(--font-ui);
-  background-color: var(--background);
-  color: var(--text-color);
-  font-size: 1.1rem;
-  line-height: 1.2rem;
-  overflow-x: hidden;
-  min-height: 100svh;
-  display: flex;
-  width: 100%;
-  flex: 1;
+@layer base {
+  html {
+    font-family: var(--font-ui);
+    background-color: var(--background);
+    color: var(--text-color);
+    font-size: 1.1rem;
+    line-height: 1.2rem;
+    overflow-x: hidden;
+    min-height: 100svh;
+    display: flex;
+    width: 100%;
+    flex: 1;
+  }
+
+  body {
+    display: flex;
+    color: var(--text-color);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    /* padding: 1rem;
+    padding: 8px; */
+    width: 100%;
+    margin: 0;
+    flex: 1;
+    background-color: var(--background);
+  }
 }
 
-body {
-  display: flex;
-  color: var(--text-color);
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  /* padding: 1rem;
-    padding: 8px; */
-  width: 100%;
-  margin: 0;
-  flex: 1;
-  background-color: var(--background);
+/* Global transition safety: opt-out class to avoid HR/theme thrash */
+.no-transitions *,
+.no-transitions *::before,
+.no-transitions *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 /* Two-pane layout rules (session page) */
-#layout {
-  display: flex;
-  flex-direction: row;
-  min-height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-}
-#event-container {
-  flex: 1;
-  min-width: 0;
-}
-#left-pane {
-  /* no extra top padding; navbar is sticky inside */
-}
-cd-nav {
-  height: var(--nav-height);
-  display: flex;
-}
-aside {
-  flex: 0 0 auto;
+@layer layout {
+  [data-page="session"] #layout {
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+  [data-page="session"] #event-container {
+    flex: 1;
+    min-width: 0;
+  }
+  [data-page="session"] #left-pane {
+    /* no extra top padding; navbar is sticky inside */
+  }
+  [data-page="session"] cd-nav {
+    height: var(--nav-height);
+    display: flex;
+  }
 }
 
 /* Global modern defaults */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
 }
 img,
 svg,
@@ -149,25 +177,32 @@ button {
   color: #fff;
 }
 
-aside {
+[data-page="session"] #layout > aside {
   width: 420px;
   max-width: 45vw;
   color: var(--text-color);
   font-family: system-ui;
-  padding: 12px;
+  padding-left: 24px;
   border-left: 1px solid var(--border);
   overflow: auto;
   background: var(--surface);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+
+[data-page="session"] #layout > aside * {
+  box-sizing: border-box;
 }
 
 /* Sidebar theme variants */
-aside[data-theme="dark"] {
+[data-page="session"] #layout > aside[data-theme="dark"] {
   background: #15171a;
   color: var(--text-color);
   border-left-color: #2b2f36;
 }
-aside[data-theme="light"] {
+[data-page="session"] #layout > aside[data-theme="light"] {
   background: var(--surface);
 }
 
@@ -197,8 +232,8 @@ h3 {
   font-size: 0.9rem;
   font-weight: 700;
   /* letter-spacing: -0.3px; */
-  padding: none;
-  margin: none;
+  padding: 0;
+  margin: 0;
 }
 
 #site-logo {

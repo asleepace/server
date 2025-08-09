@@ -60,6 +60,36 @@ pub fn send_event_to_session_global(session: &str, event: ServerEvent) {
     }
 }
 
+/// Broadcast an event to all active session streams (and record in each session history)
+pub fn broadcast_event_to_all_sessions(event: ServerEvent) {
+    // Append to history for every known session
+    if let Some(weak_hist) = HISTORY_PTR.get() {
+        if let Some(arc_hist) = weak_hist.upgrade() {
+            let mut hist = arc_hist.lock().unwrap();
+            let size = HISTORY_SIZE.get().copied().unwrap_or(100);
+            for (_sid, deque) in hist.iter_mut() {
+                deque.push_back(event.clone());
+                while deque.len() > size {
+                    deque.pop_front();
+                }
+            }
+        }
+    }
+
+    // Broadcast to all active session streams
+    if let Some(weak_sessions) = SESSIONS_PTR.get() {
+        if let Some(arc_sessions) = weak_sessions.upgrade() {
+            let mut map = arc_sessions.lock().unwrap();
+            for (_sid, vec) in map.iter_mut() {
+                vec.retain_mut(|stream| match stream.server_side_event(event.clone()) {
+                    Ok(_) => true,
+                    Err(_) => false,
+                });
+            }
+        }
+    }
+}
+
 pub struct HttpConnections {
     connections: Arc<Mutex<Vec<HttpRequest>>>,
     sessions: Arc<Mutex<HashMap<String, Vec<HttpRequest>>>>,

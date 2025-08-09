@@ -7,6 +7,9 @@ use core::util::Rand;
 use core::ServerEvent;
 use core::Stdout;
 use std::io::{Error, Result};
+use std::path::Path;
+use std::thread;
+use std::time::{Duration, SystemTime};
 
 mod core;
 
@@ -135,6 +138,55 @@ fn main() -> Result<()> {
         }
     });
 
+    // Dev: trigger hot reload via POST /__reload (optional session scope: ?s=id)
+    server.route("/__reload", |sr| match sr.headers.method {
+        HttpMethod::POST => {
+            if let Some(sid) = sr.query_param("s") {
+                crate::core::http::http_connections::send_event_to_session_global(
+                    sid,
+                    ServerEvent::event("hot-reload", "1".to_string()),
+                );
+            } else {
+                crate::core::http::http_connections::broadcast_event_to_all_sessions(
+                    ServerEvent::event("hot-reload", "1".to_string()),
+                );
+            }
+            sr.send_text(core::http::HttpStatus::OK, "text/plain", "ok")
+                .map(|_| 200)
+        }
+        _ => sr
+            .send_text(
+                core::http::HttpStatus::BadRequest,
+                "text/plain",
+                "bad request",
+            )
+            .map(|_| 400),
+    });
+
+    // Dev: generic client command endpoint: POST /__client body => event: client-cmd
+    server.route("/__client", |sr| match sr.headers.method {
+        HttpMethod::POST => {
+            let data = sr.body_string_lossy();
+            if data.trim() == "@client:reload" {
+                crate::core::http::http_connections::broadcast_event_to_all_sessions(
+                    ServerEvent::event("hot-reload", "1".to_string()),
+                );
+            } else {
+                let ev = ServerEvent::event("client-cmd", data);
+                crate::core::http::http_connections::broadcast_event_to_all_sessions(ev);
+            }
+            sr.send_text(core::http::HttpStatus::OK, "text/plain", "ok")
+                .map(|_| 200)
+        }
+        _ => sr
+            .send_text(
+                core::http::HttpStatus::BadRequest,
+                "text/plain",
+                "bad request",
+            )
+            .map(|_| 400),
+    });
+
     server.route("/info", |sr| {
         println!("[main] serving route: /info");
         match sr.send_file("info.html") {
@@ -179,6 +231,61 @@ fn main() -> Result<()> {
             Err(err) => Err(err),
         }
     });
+
+    // Dev file watcher: broadcast hot-reload when files under public dir change
+    if std::env::var("DEV_WATCH").ok().as_deref() != Some("0") {
+        let public_dir = std::env::var("PUBLIC_DIR").unwrap_or_else(|_| "./src/public".to_string());
+        thread::spawn(move || {
+            fn latest_mtime(path: &Path) -> SystemTime {
+                let mut newest = SystemTime::UNIX_EPOCH;
+                if let Ok(meta) = std::fs::metadata(path) {
+                    if let Ok(mt) = meta.modified() {
+                        if mt > newest {
+                            newest = mt
+                        }
+                    }
+                }
+                if let Ok(read_dir) = std::fs::read_dir(path) {
+                    for entry in read_dir.flatten() {
+                        let p = entry.path();
+                        // Skip dot-directories
+                        if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
+                            if name.starts_with('.') {
+                                continue;
+                            }
+                        }
+                        if p.is_dir() {
+                            let mt = latest_mtime(&p);
+                            if mt > newest {
+                                newest = mt
+                            }
+                        } else if let Ok(meta) = std::fs::metadata(&p) {
+                            if let Ok(mt) = meta.modified() {
+                                if mt > newest {
+                                    newest = mt
+                                }
+                            }
+                        }
+                    }
+                }
+                newest
+            }
+
+            let root = Path::new(&public_dir);
+            let mut last = latest_mtime(root);
+            loop {
+                thread::sleep(Duration::from_millis(500));
+                let cur = latest_mtime(root);
+                if cur > last {
+                    last = cur;
+                    println!("[dev-watch] change detected, broadcasting hot-reload");
+                    crate::core::http::http_connections::broadcast_event_to_all_sessions(
+                        ServerEvent::event("hot-reload", "1".to_string()),
+                    );
+                }
+            }
+        });
+    }
 
     server.start();
     Ok(())

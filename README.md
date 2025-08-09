@@ -93,7 +93,7 @@ server.route("/posts/[postId]/comments/[commentId]", |req| { /* handler */ });
 server/
 ├── src/
 │   ├── core/
-│   │   ├── http/           # HTTP request/response handling
+│   │   ├── http/            # HTTP request/response handling
 │   │   ├── middleware/      # Middleware system
 │   │   ├── routes/          # Route matching & handlers
 │   │   ├── security/        # Path validation & sanitization
@@ -105,6 +105,109 @@ server/
 ```
 
 ## 🛠️ Development
+
+## 🌐 Client UI (Public Assets)
+
+The browser UI lives in `src/public/` and is served statically by the server. It includes a minimal component system and an SSE-powered live session page.
+
+### Entry points
+
+- `src/public/session.html` loads the client via ESM:
+  ```html
+  <script type="module" src="/client.js"></script>
+  ```
+- `src/public/client.js` (ESM entry):
+  - Imports web components (`cd-nav`, `cd-tabs`, `cd-snippet`)
+  - Boots the session page (`bootstrapSessionPage`)
+  - Applies a diagnostics flag to mute logs in production
+
+### Components
+
+- Base utilities and definitions: `src/public/components/index.js`
+- Components:
+  - `src/public/components/navbar.js` → `<cd-nav>`
+  - `src/public/components/tabs.js` → `<cd-tabs>`
+  - `src/public/components/snippet.js` → `<cd-snippet>`
+
+### Live Event Stream (SSE)
+
+- Shared helpers: `src/public/scripts/events.js`
+  - `watchEvents({ eventSource, targetElement, onErrorDisconnect, maxLines, hotReload, hotReloadEventName })`
+  - `parseEvent(event)` converts `data` and `event` to display text
+  - `isNearBottom(container, threshold)` scroll behavior helper
+- Session bootstrap: `src/public/scripts/session.js`
+  - Reads session key from `window.location.pathname`
+  - Starts SSE: `/events?s=<sessionKey>` targeting `#event-stream`
+  - Persists sidebar open/width/theme in localStorage
+
+Minimal usage example:
+
+```html
+<pre><code id="event-stream"></code></pre>
+<script type="module">
+  import { watchEvents } from '/scripts/events.js'
+  watchEvents({ eventSource: '/events', targetElement: 'event-stream', maxLines: 5000 })
+<\/script>
+```
+
+### Hot Reload via SSE
+
+- `watchEvents` can auto-reload on a custom SSE event. Enabled in the session page by default.
+- Options:
+  - `hotReload: true`
+  - `hotReloadEventName: 'hot-reload'` (default)
+- Expected SSE frame (server-sent):
+
+  ```
+  event: hot-reload
+  data: 1
+
+  ```
+
+- Behavior: cache-busts CSS `<link rel="stylesheet">` tags, then calls `location.reload()` (debounced).
+
+### Client Commands via SSE
+
+- The server can push ad-hoc client commands over SSE using event `client-cmd`.
+- Default behavior: message is appended in the stream with a `[client]` prefix unless a custom handler is provided.
+- Shorthand: POST `@client:reload` to trigger a hot reload.
+
+Trigger examples:
+
+```bash
+# Hot reload all sessions
+curl -X POST http://localhost:8080/__reload
+
+# Hot reload a specific session
+curl -X POST "http://localhost:8080/__reload?s=ABC123"
+
+# Generic client message (shown in the stream by default)
+curl -X POST http://localhost:8080/__client -d 'Hello from server!'
+
+# Shorthand for reload via client command
+curl -X POST http://localhost:8080/__client -d '@client:reload'
+```
+
+### Diagnostics (Client Logging)
+
+- By default, logs are enabled on localhost and muted in production.
+- Override at runtime in DevTools:
+  ```js
+  // Enable
+  localStorage.setItem("diagnostics", "1");
+  location.reload();
+  // Disable
+  localStorage.removeItem("diagnostics");
+  location.reload();
+  ```
+
+### Client Tests
+
+- Open `http://localhost:8080/test/` to run simple browser tests.
+- Tests live in `src/public/test/index.html` and validate:
+  - `isNearBottom`
+  - `parseEvent`
+  - `watchEvents` DOM updates and hot-reload handling (with mocked `EventSource`)
 
 ### Adding Routes
 

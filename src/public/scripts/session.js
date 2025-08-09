@@ -1,131 +1,187 @@
-/**
- * Parse the incoming event data and return a formatted string.
- * @param {*} event
- */
-function parseEvent(src) {
-    console.log("[event] received: ", src);
-    const text = src.data.trim().split(",").join(" ");
-    const name = src.event || "message";
-    return `${name}: ${text}`;
-}
+import { watchEvents } from './events.js'
 
-/**
- * Create a new element with the given tag name, data and styles.
- */
-function createRowElement({ tagName = "p", text = "", style } = {}) {
-    const element = document.createElement(tagName);
-    element.textContent = text;
-    element.style = style;
-    return element;
-}
+export function bootstrapSessionPage() {
+    const path = window.location.pathname
+    const match = path.match(/\/s\/(.+)$/)
+    const sessionKey = match ? match[1] : ''
 
-/**
- * Check if the container is near the bottom. (50px)
- */
-function isNearBottom(container, threshold = 50) {
-    return (
-        container.scrollHeight - container.scrollTop - container.clientHeight <
-        threshold
-    );
-}
-
-/**
- * Watch events from event source and display them in the target element.
- *
- * @param {*} config - configuration for event stream.
- *  @param {string} config.eventSource - event source url (i.e. http://localhost:3000/events)
- *  @param {string} config.targetElement - target element which contains event data.
- */
-function watchEvents(
-    config = {
-        eventSource: "/events",
-        targetElement: "event-stream",
-        onErrorDisconnect: false,
-    },
-) {
-    console.log("[event] watching events...");
-    const eventSource = new EventSource(config.eventSource);
-    const container = document.getElementById(config.targetElement);
-
-    // append child to container and scroll to bottom (if close)
-    function insertChildAndScroll(elem) {
-        container.appendChild(elem);
-        if (isNearBottom(container)) {
-            elem.scrollIntoView({ behavior: "smooth" });
-        }
+    // Update session title and code snippets
+    const sessionTitle = document.getElementById('session-title')
+    if (sessionTitle && sessionKey) {
+        sessionTitle.innerHTML = `Data Stream ID: #<a href="/s/${sessionKey}">${sessionKey}</a>`
     }
 
-    eventSource.onopen = (event) => {
-        console.log("[event] connected!", event);
-        const ascii = [
-            "      ____                      _          _____                     ",
-            "     / ___|___  _ __ ___  _ __ | | ___    |  ___|__  _ __ _ __  _   _ ",
-            "    | |   / _ \\| '_ ` _ \\| '_ \\| |/ _ \\   | |_ / _ \\| '__| '_ \\| | | |",
-            "    | |__| (_) | | | | | | |_) | |  __/   |  _| (_) | |  | | | | |_| |",
-            "     \\____\\___/|_| |_| |_| .__/|_|\\___|   |_|  \\___/|_|  |_| |_|\\__, |",
-            "                         |_|                                      |___/ ",
-            "",
-            " :: welcome to ConsoleDump | streaming session ::",
-            " :: tip: send POSTs to this URL to see them live ::",
-        ].join("\n");
-        const elem = createRowElement({ text: ascii, style: "color:#7efc7a" });
-        insertChildAndScroll(elem);
-    };
+    const base = `${location.protocol}//${location.host}`
+    const curl = `curl -X POST ${base}/s/${sessionKey} \\\n++  -H 'Content-Type: text/plain' \\\n++  --data-binary 'hello world'`
+    const js = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'text/plain' },\n  body: 'hello world'\n})`
+    const ts = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ msg: 'hello' })\n})`
+    const node = `import axios from 'axios'\nawait axios.post('${base}/s/${sessionKey}', 'hello world', { headers: { 'Content-Type': 'text/plain' } })`
+    const py = `import requests\nrequests.post('${base}/s/${sessionKey}', data='hello world', headers={'Content-Type':'text/plain'})`
 
-    // listen to base64 events
-    eventSource.addEventListener("base64", (event) => {
-        console.log("[event] received base64 event: ", event.data);
-        const base64 = atob(event.data);
-        const elem = createRowElement({ text: base64 });
-        insertChildAndScroll(elem);
-    });
+    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text }
+    setText('curl-snippet', curl)
+    setText('js-snippet', js)
+    setText('ts-snippet', ts)
+    setText('node-snippet', node)
+    setText('py-snippet', py)
 
-    // incoming events
-    eventSource.onmessage = (event) => {
-        const data = parseEvent(event);
-        const elem = createRowElement({ text: data });
-        insertChildAndScroll(elem);
-    };
-
-    function getEventSourceStatus() {
-        switch (eventSource.readyState) {
-            case EventSource.CONNECTING:
-                return "CONNECTING";
-            case EventSource.OPEN:
-                return "OPEN";
-            case EventSource.CLOSED:
-                return "CLOSED";
+    // Sidebar handlers (moved from inline scripts)
+    document.addEventListener('cd:toggle-sidebar', () => {
+        const main = document.getElementById('layout')
+        const aside = document.getElementById('sidebar')
+        const open = aside && aside.style.display !== 'none'
+        if (!aside || !main) return
+        if (open) {
+            aside.style.display = 'none'
+            main.style.setProperty('--sidebar', '0px')
+            document.documentElement.style.setProperty('--sidebar', '0px')
+            try { localStorage.setItem('sidebar_open', '0') } catch { }
+        } else {
+            aside.style.display = 'block'
+            const w = localStorage.getItem('sidebar_width') || (aside.style.width || '420px')
+            aside.style.width = w
+            main.style.setProperty('--sidebar', w)
+            document.documentElement.style.setProperty('--sidebar', w)
+            try { localStorage.setItem('sidebar_open', '1') } catch { }
         }
-    }
+    })
 
-    // handle errors
-    eventSource.onerror = (error) => {
-        console.error("EventSource failed:", error);
-        if (config.onErrorDisconnect) eventSource.close();
-        const status = getEventSourceStatus();
-        const warn = createRowElement({
-            text: `error: disconnected (${status})`,
-            style: "color: red",
-        });
+        ; (function restoreSidebar() {
+            const main = document.getElementById('layout')
+            const aside = document.getElementById('sidebar')
+            if (!aside || !main) return
+            try {
+                const w = localStorage.getItem('sidebar_width')
+                const open = localStorage.getItem('sidebar_open')
+                const theme = localStorage.getItem('sidebar_theme')
+                if (w) { aside.style.width = w; main.style.setProperty('--sidebar', w); document.documentElement.style.setProperty('--sidebar', w) }
+                if (open === '0') { aside.style.display = 'none'; main.style.setProperty('--sidebar', '0px'); document.documentElement.style.setProperty('--sidebar', '0px') }
+                if (theme) { aside.setAttribute('data-theme', theme) }
+            } catch { }
+        })()
 
-        insertChildAndScroll(warn);
-    };
-}
+        ; (function persistWidth() {
+            const main = document.getElementById('layout')
+            const aside = document.getElementById('sidebar')
+            if (!aside || !main || !('ResizeObserver' in window)) return
+            let raf = 0
+            const observer = new ResizeObserver(() => {
+                cancelAnimationFrame(raf)
+                raf = requestAnimationFrame(() => {
+                    const w = getComputedStyle(aside).width
+                    main.style.setProperty('--sidebar', w)
+                    document.documentElement.style.setProperty('--sidebar', w)
+                    try { localStorage.setItem('sidebar_width', w) } catch { }
+                })
+            })
+            observer.observe(aside)
+        })()
 
+        ; (function sidebarTheme() {
+            const aside = document.getElementById('sidebar')
+            const drag = document.getElementById('drag-hint')
+            if (!aside || !drag) return
+            function toggle() {
+                const cur = aside.getAttribute('data-theme') || 'light'
+                const nx = cur === 'light' ? 'dark' : 'light'
+                aside.setAttribute('data-theme', nx)
+                try { localStorage.setItem('sidebar_theme', nx) } catch { }
+            }
+            drag.addEventListener('dblclick', toggle)
 
+            // Left-edge drag to resize sidebar
+            let resizing = false
+            let startX = 0
+            let startWidth = 0
+            const minWidth = 280
+            const maxWidth = Math.round(window.innerWidth * 0.65)
 
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('[session.js] initializing ....')
+            const onMouseMove = (e) => {
+                if (!resizing) return
+                // For a right sidebar with a left-edge handle, moving LEFT increases width
+                const dx = startX - e.clientX
+                const next = Math.min(Math.max(startWidth + dx, minWidth), maxWidth)
+                aside.style.width = `${next}px`
+                const main = document.getElementById('layout')
+                if (main) main.style.setProperty('--sidebar', `${next}px`)
+                document.documentElement.style.setProperty('--sidebar', `${next}px`)
+            }
+            const onMouseUp = () => {
+                if (!resizing) return
+                resizing = false
+                try { localStorage.setItem('sidebar_width', getComputedStyle(aside).width) } catch { }
+                window.removeEventListener('mousemove', onMouseMove)
+                window.removeEventListener('mouseup', onMouseUp)
+                document.body.style.userSelect = ''
+                document.body.style.cursor = ''
+            }
+            drag.addEventListener('mousedown', (e) => {
+                // Only start drag if near the left edge of the screen (already positioned at left:0)
+                resizing = true
+                startX = e.clientX
+                startWidth = parseInt(getComputedStyle(aside).width, 10) || minWidth
+                window.addEventListener('mousemove', onMouseMove)
+                window.addEventListener('mouseup', onMouseUp)
+                document.body.style.userSelect = 'none'
+                document.body.style.cursor = 'col-resize'
+                e.preventDefault()
+            })
+        })()
 
-    const [_, sessionKey] = window.location.pathname.split('s/')
-    console.log('[session.js] sessionId:', sessionKey)
-
-    /**
-     * Start watching events as soon as the page loads.
-     */
+    // Start watching events
+    const eventSourceUrl = sessionKey ? `/events?s=${sessionKey}` : '/events'
     watchEvents({
-        targetElement: "event-stream",
-        eventSource: `/events?s=${sessionKey}`,
+        targetElement: 'event-stream',
+        eventSource: eventSourceUrl,
         onErrorDisconnect: false,
-    });
-})
+        hotReload: true,
+        hotReloadEventName: 'hot-reload',
+        clientCmdHandler: (payload) => {
+            // Default: append to stream; handled in events.js already
+            // Optionally parse messages beginning with ':' and show hints
+            if (payload.startsWith('info:')) {
+                const el = document.createElement('p')
+                el.style.color = 'var(--green-accent)'
+                el.textContent = payload.slice(5).trim()
+                const container = document.getElementById('event-stream')
+                if (container) container.appendChild(el)
+            }
+        }
+    })
+
+    // CLI DSL
+    const input = document.getElementById('cli-input')
+    if (input) {
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter') return
+            const value = input.value.trim()
+            input.value = ''
+            if (!value) return
+
+            const lc = value.toLowerCase()
+            if (lc === ':clear') {
+                const stream = document.getElementById('event-stream')
+                if (stream) stream.innerHTML = ''
+                return
+            }
+            if (lc.startsWith(':theme')) {
+                const arg = lc.split(/\s+/)[1]
+                const root = document.documentElement
+                const newTheme = arg === 'light' ? 'light' : 'dark'
+                root.setAttribute('data-theme', newTheme)
+                try { localStorage.setItem('theme', newTheme) } catch { }
+                return
+            }
+            if (lc === ':toggle') {
+                document.dispatchEvent(new CustomEvent('cd:toggle-sidebar', { bubbles: true, composed: true }))
+                return
+            }
+            if (lc === ':reload') {
+                try { await fetch('/__reload', { method: 'POST' }) } catch { }
+                return
+            }
+            // Default: send to /__client
+            try { await fetch('/__client', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: value }) } catch { }
+        })
+    }
+}

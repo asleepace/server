@@ -101,36 +101,88 @@
             z-index: 100;
         }
 
+        aside * {
+            box-sizing: border-box;
+        }
+
+        aside {
+            padding: 18px 16px 20px 16px;
+        }
+
+        aside h2 {
+            font-family: var(--font-headings);
+            font-size: 1.3rem;
+            margin: 0 0 10px 0;
+            color: var(--text-color);
+            letter-spacing: 0.2px;
+        }
+
+        aside h3,
+        aside h4 {
+            font-family: var(--font-ui);
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            margin: 12px 0 8px 0;
+        }
+
         aside p {
-            font-size: 14px;
+            font-size: 0.85rem;
+            color: var(--muted-text);
+            line-height: 1.5;
+            margin: 6px 0;
+        }
+
+        aside small {
+            font-size: 0.78rem;
+            color: var(--muted-text);
+        }
+
+        aside code,
+        aside pre {
+            color: var(--code-text-color);
+        }
+    </style>
+    <style>
+        /* Accessibility improvements for the log */
+        #event-container[role="log"] {
+            aria-live: polite;
+            aria-atomic: false;
         }
     </style>
 </head>
 
 <body>
-    <cd-nav title="ConsoleDump" sidebar-toggle></cd-nav>
     <div class="scroll-container">
         <main id="layout" style="--sidebar: 420px;">
-            <pre id="event-container" style="width: calc(100% - var(--sidebar));">
-                <code id="event-stream"></code>
-            </pre>
+            <section id="left-pane" style="display:flex; flex-direction:column; flex:1; min-width:0;">
+                <cd-nav title="ConsoleDump" sidebar-toggle></cd-nav>
+                <pre id="event-container" role="log" aria-live="polite" style="flex:1; min-width:0; margin:0;">
+                    <code id="event-stream"></code>
+                </pre>
+                <div id="cli"
+                    style="display:flex; padding:8px 12px; border-top:1px solid var(--border); background: var(--surface);">
+                    <input id="cli-input" type="text" placeholder=":"
+                        style="width:100%; font-family: var(--font-mono); font-size: 14px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background: var(--code-back-color); color: var(--code-text-color);" />
+                </div>
+            </section>
             <aside id="sidebar" data-theme="light"
-                style="width: var(--sidebar); min-width: 280px; max-width: 65vw; resize: horizontal; overflow:auto; position: relative;">
+                style="width: var(--sidebar); min-width: 280px; max-width: 65vw; overflow:auto; position: relative; z-index:100;">
                 <div id="drag-hint"
-                    style="position:absolute; left:0; top:0; bottom:0; width:6px; cursor: ew-resize; background: var(--border); opacity:0.3">
+                    style="position:absolute; left:0; top:0; bottom:0; width:8px; cursor: col-resize; background: var(--border); opacity:0.3">
                 </div>
                 <h2 id="session-title">Data Stream</h2>
                 <cd-tabs tabs="instructions,settings,hooks" active="instructions">
                     <section slot="instructions">
-                        <h3 style="margin-top:0">Quick start</h3>
+                        <p style="margin:0 0 8px 0">ConsoleDump helps you rapidly debug in low-visibility or remote
+                            environments by streaming POSTed data directly into a shareable live session.</p>
+                        <p style="margin:0 0 12px 0">Share this session link to collaborate quickly:</p>
+                        <cd-snippet lang="text" id="link-snippet"></cd-snippet>
+                        <h3 style="margin-top:8px">Quick start</h3>
                         <p>Send any HTTP POST to this session. Payload will be forwarded to the stream.</p>
                         <cd-snippet lang="bash" id="curl-snippet"></cd-snippet>
                         <h4>JavaScript (fetch)</h4>
                         <cd-snippet lang="js" id="js-snippet"></cd-snippet>
-                        <h4>TypeScript (fetch)</h4>
-                        <cd-snippet lang="ts" id="ts-snippet"></cd-snippet>
-                        <h4>Node.js (axios)</h4>
-                        <cd-snippet lang="js" id="node-snippet"></cd-snippet>
                         <h4>Python (requests)</h4>
                         <cd-snippet lang="py" id="py-snippet"></cd-snippet>
                         <small>Tip: Large payloads supported. For now, base64 event emitted as <code>base64</code> SSE.
@@ -146,97 +198,7 @@
             </aside>
         </main>
     </div>
+    <script type="module" src="/client.js"></script>
 </body>
-<script src="/components/snippet.js" defer></script>
-<script src="/components/navbar.js" defer></script>
-<script src="/components/tabs.js" defer></script>
-<script src="/scripts/session.js" defer></script>
-<script>
-    void function initialize() {
-        const [_, sessionKey] = window.location.pathname.split('s/')
-        const sessionTitle = document.getElementById('session-title')
-
-        if (sessionTitle) {
-            sessionTitle.innerHTML = `Data Stream ID: #<a href="/s/${sessionKey}">${sessionKey}</a>`
-        } else {
-            console.warn('[session.html] failed to find session title element!')
-        }
-
-        const base = `${location.protocol}//${location.host}`
-        const curl = `curl -X POST ${base}/s/${sessionKey} \\\n+  -H 'Content-Type: text/plain' \\\n+  --data-binary 'hello world'`
-        const js = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'text/plain' },\n  body: 'hello world'\n})`
-        const ts = `await fetch('${base}/s/${sessionKey}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ msg: 'hello' })\n})`
-        const node = `import axios from 'axios'\nawait axios.post('${base}/s/${sessionKey}', 'hello world', { headers: { 'Content-Type': 'text/plain' } })`
-        const py = `import requests\nrequests.post('${base}/s/${sessionKey}', data='hello world', headers={'Content-Type':'text/plain'})`
-
-        document.getElementById('curl-snippet').textContent = curl
-        document.getElementById('js-snippet').textContent = js
-        document.getElementById('ts-snippet').textContent = ts
-        document.getElementById('node-snippet').textContent = node
-        document.getElementById('py-snippet').textContent = py
-    }()
-</script>
-<script>
-    // Toggle sidebar visibility
-    document.addEventListener('cd:toggle-sidebar', () => {
-        const main = document.getElementById('layout');
-        const aside = document.getElementById('sidebar');
-        const open = aside.style.display !== 'none';
-        if (open) {
-            aside.style.display = 'none';
-            main.style.setProperty('--sidebar', '0px');
-            try { localStorage.setItem('sidebar_open', '0'); } catch { }
-        } else {
-            aside.style.display = 'block';
-            const w = localStorage.getItem('sidebar_width') || (aside.style.width || '420px');
-            aside.style.width = w;
-            main.style.setProperty('--sidebar', w);
-            try { localStorage.setItem('sidebar_open', '1'); } catch { }
-        }
-    });
-
-    // Restore sidebar state
-    (function restoreSidebar() {
-        const main = document.getElementById('layout');
-        const aside = document.getElementById('sidebar');
-        try {
-            const w = localStorage.getItem('sidebar_width');
-            const open = localStorage.getItem('sidebar_open');
-            const theme = localStorage.getItem('sidebar_theme');
-            if (w) { aside.style.width = w; main.style.setProperty('--sidebar', w); }
-            if (open === '0') { aside.style.display = 'none'; main.style.setProperty('--sidebar', '0px'); }
-            if (theme) { aside.setAttribute('data-theme', theme); }
-        } catch { }
-    })();
-
-    // Persist width when user resizes
-    (function persistWidth() {
-        const main = document.getElementById('layout');
-        const aside = document.getElementById('sidebar');
-        let raf = 0;
-        const observer = new ResizeObserver(() => {
-            cancelAnimationFrame(raf);
-            raf = requestAnimationFrame(() => {
-                const w = getComputedStyle(aside).width;
-                main.style.setProperty('--sidebar', w);
-                try { localStorage.setItem('sidebar_width', w); } catch { }
-            });
-        });
-        observer.observe(aside);
-    })();
-
-    // Sidebar theme toggle via double-click on drag handle
-    (function sidebarTheme() {
-        const aside = document.getElementById('sidebar');
-        const drag = document.getElementById('drag-hint');
-        function toggle() {
-            const cur = aside.getAttribute('data-theme') || 'light';
-            const nx = cur === 'light' ? 'dark' : 'light';
-            aside.setAttribute('data-theme', nx);
-            try { localStorage.setItem('sidebar_theme', nx); } catch { }
-        }
-        drag.addEventListener('dblclick', toggle);
-    })();
-</script>
 
 </html>

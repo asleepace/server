@@ -10,9 +10,9 @@ class CDTabs extends HTMLElement {
 
     render() {
         const style = `
-      :host { display:block; }
-      .segmented { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background: var(--surface); }
-      .segmented button { border:none; padding:6px 10px; background:transparent; color: var(--text-color); cursor:pointer; font-family: var(--font-ui); }
+      :host { display:block; width:100%; }
+      .segmented { display:flex; width:100%; border:1px solid var(--border); border-radius:8px; overflow:hidden; background: var(--surface); }
+      .segmented button { flex:1; border:none; padding:6px 10px; background:transparent; color: var(--text-color); cursor:pointer; font-family: var(--font-ui); }
       .segmented button[aria-pressed="true"] { background: var(--background-2); }
       .panel { margin-top:8px; }
     `;

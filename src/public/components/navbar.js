@@ -1,6 +1,4 @@
-import { $ } from './index.js'
-
-$.define('cd-nav', function ({ state, onMounted }) {
+export default function CdNav({ state, onMounted }) {
     onMounted(() => {
         const themeBtn = this.shadowRoot.querySelector('#theme')
         const sidebarBtn = this.shadowRoot.querySelector('#sidebar')
@@ -63,4 +61,4 @@ $.define('cd-nav', function ({ state, onMounted }) {
             </div>
         </nav>
     `
-})
+}

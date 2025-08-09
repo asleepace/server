@@ -46,7 +46,8 @@ const sharedStyles = (function () {
     const styles = document.createElement('style')
     styles.textContent = `
         :host {
-           --color-text: rgba(255, 255, 255, 0.8);
+           /* Shared design tokens available to all components */
+           --color-text: rgba(255, 255, 255, 0.86);
            --color-tint: #7efc7a;
            --color-bg: #15171a;
            --color-surface: #15171a;
@@ -54,134 +55,18 @@ const sharedStyles = (function () {
            --color-shadow: rgba(0,0,0,0.2);
            --text-size: 14px;
            --text-font: monospace;
-           --size-navbar: 50px;
-
-           display: flex;
-           flex-direction: row;
-           width: 100%;
-           height: var(--size-navbar);
-           background-color: var(--color-bg);
-           position: absolute;
-           left: 0;
-           right: 0;
-           top: 0;
-           z-index: 50;
         }
 
-        nav { 
-            width: 100%; 
-            border-bottom: 1px solid var(--color-border); 
-            background: var(--color-surface); 
-            height: var(--size-navbar); 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            padding: 0 12px; 
-            box-shadow: 0 2px 6px var(--color-shadow); 
-            box-sizing: border-box; 
-        }
-
-        .nav-title {
-            font-weight: bold;
-            color: var(--color-text);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .nav-bttns {
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
-            align-items: center;
-        }
-
-        button {
-            border: none; 
-            border-right: 1px solid var(--color-border); 
-            background: transparent; 
-            padding: 6px 10px; 
-            color: var(--color-tint); 
-            font-family: var(--text-font); 
-            text-decoration: none; 
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: rgba(126, 252, 122, 0.1);
-        }
-
-        button:last-child {
-            border-right: none;
-        }
-
-        #cursor {
-            color: var(--color-tint);
-            opacity: 1;
-            transition: opacity 0.1s;
-        }
-
-        .flex {
-           display: flex;
-           flex: 1;
-        }
-        
-        .flex-col {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .flex-row {
-            display: flex;
-            flex-direction: row;
-        }
-
-        .w-full { width: 100%; }
-        .h-full { height: 100%; }
-        .min-w-full { min-width: 100%; }
-        .min-h-full { min-height: 100%; }
-
-        .px-0 {
-            padding-left: 0px;
-            padding-right: 0px;
-        }
-        .px-1 {
-            padding-left: 4px;
-            padding-right: 4px;
-        }
-        .px-2 {
-            padding-left: 8px;
-            padding-right: 8px;
-        }
-
-        .py-0 {
-            padding-top: 0px;
-            padding-bottom: 0px;
-        }
-        .py-1 {
-            padding-top: 4px;
-            padding-bottom: 4px;
-        }
-        .py-2 {
-            padding-top: 8px;
-            padding-bottom: 8px;
-        }
-
-        .p-0 {
-            padding: 0px;
-        }
-
-        .p-1 {
-            padding: 4px;
-        }
-
-        .p-2 {
-            padding: 8px;
-        }
-
-        .m-0 {
-            margin: 0px;
-        }
+        /* Minimal utilities only; no component-specific styling here */
+        .flex { display:flex; }
+        .flex-col { display:flex; flex-direction:column; }
+        .flex-row { display:flex; flex-direction:row; }
+        .w-full { width:100%; }
+        .h-full { height:100%; }
+        .m-0 { margin:0; }
+        .p-0 { padding:0; }
+        .p-1 { padding:4px; }
+        .p-2 { padding:8px; }
     `
     return styles
 })()
@@ -235,6 +120,12 @@ export class BaseElement extends HTMLElement {
     }
 
     attributeChangedCallback() {
+        if (this.shadowRoot) this.renderToShadow()
+    }
+
+    // Ensure direct attribute updates trigger a re-render even without observedAttributes
+    setAttribute(name, value) {
+        super.setAttribute(name, value)
         if (this.shadowRoot) this.renderToShadow()
     }
 
@@ -418,6 +309,7 @@ export class $ {
                 super()
                 this._renderFn = renderFn.bind(this)
                 this._mountedCallbacks = []
+                this._methods = {}
             }
 
             onMounted(mountedCallback) {
@@ -436,7 +328,13 @@ export class $ {
                         state: this.state,
                         onMounted: this.onMounted.bind(this)
                     })
-                    return result || ""
+                    if (typeof result === 'string') return result || ""
+                    if (result && typeof result === 'object') {
+                        const { html = "", methods = {} } = result
+                        this._methods = methods || {}
+                        return html
+                    }
+                    return ""
                 } catch (e) {
                     console.error(`Error rendering ${elemName}:`, e)
                     return `<div>Error rendering component</div>`
@@ -448,6 +346,32 @@ export class $ {
 
                 // Execute all stored mounted callbacks
                 setTimeout(() => {
+                    // Link step: bind @method handlers declared as inline on*="@method"
+                    try {
+                        const root = this.shadowRoot
+                        if (root) {
+                            const all = root.querySelectorAll('*')
+                            all.forEach((el) => {
+                                Array.from(el.attributes).forEach(attr => {
+                                    const name = attr.name.toLowerCase()
+                                    const val = attr.value
+                                    if (!name.startsWith('on')) return
+                                    if (!val || !val.startsWith('@')) return
+                                    const handlerName = val.slice(1)
+                                    const fn = this._methods && this._methods[handlerName]
+                                    if (typeof fn === 'function') {
+                                        const eventName = name.slice(2)
+                                        el.removeAttribute(attr.name)
+                                        el.addEventListener(eventName, fn.bind(this))
+                                    } else {
+                                        console.warn(`[components] missing handler @${handlerName} for`, name, el)
+                                    }
+                                })
+                            })
+                        }
+                    } catch (err) {
+                        console.warn('[components] link step failed:', err)
+                    }
                     if (!this.isMounted) {
                         this.isMounted = true
                         this._mountedCallbacks.forEach(callback => {
@@ -474,3 +398,4 @@ export class $ {
         this.element = $.select(selector)
     }
 }
+

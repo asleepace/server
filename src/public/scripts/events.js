@@ -39,18 +39,35 @@ export function watchEvents(
   function getEnabledHooks() {
     try {
       const hooks = JSON.parse(localStorage.getItem('cd_hooks') || '[]')
+      // Seed a default prompt prehook if none exist
+      if (!hooks || hooks.length === 0 || !hooks.some(h => h && /prompt/i.test(h.name))) {
+        hooks.push({
+          id: 'builtin_prompt',
+          name: 'Prompt',
+          enabled: true,
+          code: `function transform(ctx, text){
+  var ts = ctx && ctx.ts ? ctx.ts : new Date();
+  var time = (ts instanceof Date ? ts : new Date(ts)).toLocaleTimeString();
+  var sender = (ctx && ctx.sender) ? String(ctx.sender) : 'system';
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+  return { html: '<span style="color:#8a8f98">'+time+'</span> <span style="color:#7efc7a">@'+sender+'</span> <span style="color:#9aa0a6">&raquo;&raquo;</span> <span>'+esc(text)+'</span>' };
+}`
+        })
+        try { localStorage.setItem('cd_hooks', JSON.stringify(hooks)) } catch { }
+      }
       return hooks.filter(h => h && h.enabled && typeof h.code === 'string')
     } catch { return [] }
   }
 
-  function applyHooks(text) {
+  function applyHooks(text, ctx) {
     const hooks = getEnabledHooks()
     let output = text
     for (const h of hooks) {
       try {
         // eslint-disable-next-line no-new-func
         const fn = new Function('ctx', 'text', `${h.code}; return (typeof transform==='function') ? transform(ctx, text) : text;`)
-        output = fn({ name: h.name }, output)
+        const context = Object.assign({ name: h.name }, ctx || {})
+        output = fn(context, output)
       } catch (e) {
         console.warn('[hook] error in hook', h.name, e)
       }
@@ -88,8 +105,8 @@ export function watchEvents(
 
   eventSource.onopen = (event) => {
     const href = (typeof location !== 'undefined') ? location.href : ''
-    // ASCII banner
-    insertChildAndScroll(createRowElement({ tagName: 'pre', html: escapeBasic(AsciiTitle3D), className: 'ascii' }))
+    // ASCII banner as plain text line (no pre background)
+    insertChildAndScroll(createRowElement({ tagName: 'p', text: AsciiTitle3D, className: 'ascii', style: 'white-space: pre; margin:0;' }))
     // Welcome lines
     const now = Date.now()
     const lines = [
@@ -97,16 +114,16 @@ export function watchEvents(
       `:: Session ${href} ::`,
       ':: Pipe your data here from anywhere to debug in realtime.',
     ]
-    lines.forEach((line) => insertChildAndScroll(createRowElement({ html: finalizeRenderText(line, 'system') })))
-    insertChildAndScroll(createRowElement({ html: finalizeRenderText(`connected to ${href}`, 'system', new Date(now)) }))
-    insertChildAndScroll(createRowElement({ html: finalizeRenderText('type @help below to see commands...', 'system', new Date(now + 1000)) }))
-    insertChildAndScroll(createRowElement({ html: finalizeRenderText('happy debugging!', 'system', new Date(now + 2000)) }))
+    lines.forEach((line) => insertChildAndScroll(createRowElement({ html: finalizeRenderText(applyHooks(line, { sender: 'system', ts: now }), 'system') })))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText(applyHooks(`connected to ${href}`, { sender: 'system', ts: now }), 'system') }))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText(applyHooks('type @help below to see commands...', { sender: 'system', ts: now + 1000 }), 'system') }))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText(applyHooks('happy debugging!', { sender: 'system', ts: now + 2000 }), 'system') }))
   }
 
   eventSource.addEventListener('base64', (event) => {
     try {
       const decoded = atob(event.data)
-      const result = applyHooks(decoded)
+      const result = applyHooks(decoded, { sender: 'server' })
       const elem = createRowElement({ html: finalizeRenderText(result, 'server') })
       insertChildAndScroll(elem)
     } catch (e) {
@@ -117,7 +134,7 @@ export function watchEvents(
 
   eventSource.onmessage = (event) => {
     const data = parseEvent(event)
-    const result = applyHooks(data)
+    const result = applyHooks(data, { sender: 'server' })
     const elem = createRowElement({ html: finalizeRenderText(result, 'server') })
     insertChildAndScroll(elem)
   }
@@ -159,7 +176,7 @@ export function watchEvents(
       return
     }
     // default behavior: log to stream if available
-    insertChildAndScroll(createRowElement({ html: finalizeRenderText(payload, 'client') }))
+    insertChildAndScroll(createRowElement({ html: finalizeRenderText(applyHooks(payload, { sender: 'client' }), 'client') }))
   })
 
   eventSource.onerror = () => {

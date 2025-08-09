@@ -18,13 +18,21 @@ export default function CdSnippet({ state, onMounted }) {
       .tok-cmd { color: #8be9fd; }
     `;
   onMounted((host) => {
-    const codeText = (host.textContent || '').replace(/\n$/, '')
     const codeEl = host.shadowRoot.getElementById('code')
-    const html = highlight(codeText, (host.getAttribute('lang') || 'text').toLowerCase())
-    codeEl.innerHTML = html
     const copyBtn = host.shadowRoot.getElementById('copy')
+    const getLang = () => (host.getAttribute('lang') || 'text').toLowerCase()
+    const update = () => {
+      const codeText = (host.textContent || '').replace(/\n$/, '')
+      codeEl.innerHTML = highlight(codeText, getLang())
+    }
+    // Initial render; defer one microtask to allow external text setters first
+    queueMicrotask(update)
+    // Watch for content changes to keep snippet in sync with host textContent
+    const mo = new MutationObserver(() => update())
+    mo.observe(host, { characterData: true, childList: true, subtree: true })
+    host.__snippetObserver = mo
     copyBtn.onclick = async () => {
-      const clean = sanitizeForCopy(codeText)
+      const clean = sanitizeForCopy((host.textContent || '').replace(/\n$/, ''))
       try { await navigator.clipboard.writeText(clean) } catch {
         const ta = document.createElement('textarea'); ta.value = clean; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy') } catch { }; document.body.removeChild(ta)
       }

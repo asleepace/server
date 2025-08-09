@@ -8,7 +8,7 @@ export function bootstrapSessionPage() {
     // Update session title and code snippets
     const sessionTitle = document.getElementById('session-title')
     if (sessionTitle && sessionKey) {
-        sessionTitle.innerHTML = `Data Stream ID: #<a href="/s/${sessionKey}">${sessionKey}</a>`
+        sessionTitle.innerHTML = `Stream ID: #<a style="color: #ff79c6;" href="/s/${sessionKey}">${sessionKey}</a>`
     }
 
     const base = `${location.protocol}//${location.host}`

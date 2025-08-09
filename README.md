@@ -117,17 +117,39 @@ The browser UI lives in `src/public/` and is served statically by the server. It
   <script type="module" src="/client.js"></script>
   ```
 - `src/public/client.js` (ESM entry):
-  - Imports web components (`cd-nav`, `cd-tabs`, `cd-snippet`)
+  - Imports a single component registry: `src/public/scripts/components/index.js`
   - Boots the session page (`bootstrapSessionPage`)
   - Applies a diagnostics flag to mute logs in production
 
 ### Components
 
 - Base utilities and definitions: `src/public/components/index.js`
-- Components:
-  - `src/public/components/navbar.js` → `<cd-nav>`
-  - `src/public/components/tabs.js` → `<cd-tabs>`
-  - `src/public/components/snippet.js` → `<cd-snippet>`
+- Function-first components (export default fn) in `src/public/components/`:
+  - `navbar.js` → `<cd-nav>`
+  - `tabs.js` → `<cd-tabs>`
+  - `snippet.js` → `<cd-snippet>`
+- Central registry registers all: `src/public/scripts/components/index.js`
+
+#### Linking step (inline events)
+
+- Component factories may return a string or `{ html, methods }`.
+  - `html`: component markup string
+  - `methods`: map of handlers to bind
+- Registry scans shadowRoot after render and links inline events written as `on*="@handlerName"`.
+
+Example:
+
+```js
+export default function MyButton() {
+  function showAlert() {
+    alert("Hi!");
+  }
+  return {
+    html: `<button onclick="@showAlert">Click</button>`,
+    methods: { showAlert },
+  };
+}
+```
 
 ### Live Event Stream (SSE)
 

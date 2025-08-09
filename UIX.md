@@ -28,10 +28,29 @@ Vision: Minimal, retro-modern console UI with a right-side inspector. Hacker vib
 - Tokens from `index.css` (light/dark); subtle borders; rounded panel corners.
 - Panels: event stream and sidebar as distinct surfaces.
 
+### Snippet conventions
+
+- Non-wrapping code; horizontal scroll only as needed
+- Minimal Dracula-like highlighting applied in shadow DOM; copy remains plain text
+- Copy is sanitized (quotes, dashes, nbsp, zero-width, newlines) for reliable paste
+
+### Sidebar content spec
+
+- Share Link
+- Bash (curl)
+- JavaScript (fetch)
+- Python (requests)
+
 ## Accessibility
 
 - Stream container: `role="log"` and `aria-live="polite"`.
 - Buttons include aria-labels; cursor blink aria-hidden.
+
+### Tabs keyboard navigation
+
+- Left/Right: move between tabs
+- Home/End: jump to first/last tab
+- Focus-visible outline for segmented control buttons
 
 ## TODO
 
@@ -41,4 +60,4 @@ Vision: Minimal, retro-modern console UI with a right-side inspector. Hacker vib
 - [x] Client command handling for DSL
 - [x] Clean styles and responsive flex layout
 - [ ] Future: virtualized stream rendering for huge logs
-- [ ] Future: keyboard support for tabs (Left/Right/Home/End)
+- [x] Keyboard support for tabs (Left/Right/Home/End)

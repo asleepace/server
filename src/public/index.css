@@ -23,6 +23,9 @@
   --code-back-color: #1c1c1e; /* near-black */
   --code-text-color: #d7d7d8; /* soft gray */
   --code-bord-color: #444444; /* gutter */
+  --code-pink-color: #ff79c6; /* light pink */
+  --code-blue-color: #8be9fd; /* light blue */
+  --code-pale-color: #f1fa8c; /* light yellow */
 
   /* nav */
   --nav-height: 48px;

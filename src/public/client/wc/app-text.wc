@@ -1,0 +1,27 @@
+@component app-text: HTMLElement
+@prop (attr) text: String = ""
+@prop (attr) variant: String = "p"
+@prop (attr) align: String = "left"
+@prop (attr) weight: String = ""
+
+@style
+  :host { display: inline; }
+  .h1 { font-size: 2rem; font-weight: 800; line-height: 1.2; }
+  .h2 { font-size: 1.6rem; font-weight: 700; line-height: 1.25; }
+  .h3 { font-size: 1.3rem; font-weight: 700; }
+  .h4 { font-size: 1.05rem; font-weight: 600; }
+  .p  { font-size: .95rem; }
+  .small { font-size: .85rem; opacity: .9; }
+  .muted { color: var(--muted-text); }
+@end
+
+
+@template
+  <span class="{{variant}}" style="text-align: {{align}}; font-weight: {{weight}};">{{text}}<slot></slot></span>
+@end
+
+
+@method onMounted: () => {}
+@end
+
+

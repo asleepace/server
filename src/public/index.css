@@ -2,6 +2,14 @@
 
 /* Default to dark theme */
 @layer tokens {
+  @font-face {
+    font-family: "MaterialSymbolsSharp";
+    src: url("/assets/Material_Symbols_Sharp/static/MaterialSymbolsSharp_36pt-Regular.ttf")
+      format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
   :root,
   [data-theme="dark"] {
     /* brand & typography */
@@ -32,6 +40,7 @@
     --code-pink-color: #ff79c6; /* light pink */
     --code-blue-color: #8be9fd; /* light blue */
     --code-pale-color: #f1fa8c; /* light yellow */
+    --code-green-color: #7efc7a; /* pale green */
 
     /* nav */
     --nav-height: 48px;
@@ -131,6 +140,7 @@
   [data-page="session"] #event-container {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
   }
   [data-page="session"] #left-pane {
     /* no extra top padding; navbar is sticky inside */
@@ -339,6 +349,21 @@ li {
   font-family: var(--font-mono);
   padding: 6px 10px;
   border-radius: 6px;
+}
+
+/* Material icon helper */
+.material-icon {
+  font-family: "MaterialSymbolsSharp";
+  font-weight: 400;
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "liga";
 }
 .btn:hover {
   background: var(--background-2);

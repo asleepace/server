@@ -1,42 +1,35 @@
 import { $, AsciiSymbols } from './index.js'
 
 export default function CdNav({ state, onMounted }) {
-    onMounted(() => {
-        const newBtn = this.shadowRoot.querySelector('#new')
-        const settingsBtn = this.shadowRoot.querySelector('#settings')
-        const editorBtn = this.shadowRoot.querySelector('#editor')
-        const sidebarBtn = this.shadowRoot.querySelector('#sidebar')
+  onMounted(() => {
+    const newBtn = this.shadowRoot.querySelector('#new')
+    const settingsBtn = this.shadowRoot.querySelector('#settings')
+    const editorBtn = this.shadowRoot.querySelector('#editor')
+    const sidebarBtn = this.shadowRoot.querySelector('#sidebar')
 
-        if (newBtn) newBtn.onclick = () => { window.location.href = '/session/new' }
-        if (settingsBtn) settingsBtn.onclick = () => this.dispatchEvent($.event('cd:open-settings'))
-        if (editorBtn) editorBtn.onclick = () => this.dispatchEvent($.event('cd:toggle-editor'))
-        if (sidebarBtn) sidebarBtn.onclick = () => this.dispatchEvent($.event('cd:toggle-sidebar'))
-    })
+    if (newBtn) newBtn.onclick = () => { window.location.href = '/session/new' }
+    if (settingsBtn) settingsBtn.onclick = () => this.dispatchEvent($.event('cd:open-settings'))
+    if (editorBtn) editorBtn.onclick = () => this.dispatchEvent($.event('cd:toggle-editor'))
+    if (sidebarBtn) sidebarBtn.onclick = () => this.dispatchEvent($.event('cd:toggle-sidebar'))
+  })
 
-    return `
+  return `
         <style>
             :host { display:flex; width:100%; height:var(--nav-height); position:sticky; top:0; z-index:10; }
-            nav { width:100%; border-bottom:1px solid var(--border); background: var(--surface); height:var(--nav-height); display:flex; align-items:center; justify-content:space-between; padding:0 12px; box-shadow:0 2px 6px var(--shadow); box-sizing:border-box; }
-            .nav-title { font-weight:800; letter-spacing:0.2px; color:var(--text-color); display:flex; align-items:center; gap:8px; font-family: var(--font-headings); }
-            .nav-bttns { display:flex; align-items:center; gap: 12px; }
-            .group { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background: var(--background-2); }
-            .group > button { border:none; background:transparent; padding:6px 12px; color: var(--text-color); font-family: var(--font-ui); cursor:pointer; }
-            .group > button + button { border-left:1px solid var(--border); }
-            .group > button:hover { background: rgba(255,255,255,0.06); }
-            .group.icons > button { font-size: 16px; font-weight: 800; line-height: 1; }
-            .new { color: var(--text-color); }
-            .new::before { content: '${AsciiSymbols.Plus}'; margin-right: 6px; }
         </style>
-        <nav>
-            <div class="nav-title">ConsoleDump</div>
-            <div class="nav-bttns">
-                <div class="group">
-                    <button id="new" class="new">New session</button>
+        <nav class="w-full h-[var(--nav-height)] flex items-center justify-between px-3 border-b border-[var(--border)] bg-[var(--surface)] shadow-[0_2px_6px_var(--shadow)] box-border">
+            <div class="font-extrabold tracking-[0.2px] text-[var(--text-color)] flex items-center gap-2 font-[var(--font-headings)]">ConsoleDump</div>
+            <div class="flex items-center gap-3">
+                <div class="inline-flex border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--background-2)]">
+                    <button id="new" class="px-3 py-1.5 text-[var(--text-color)] font-[var(--font-ui)] hover:bg-white/5 flex items-center gap-1">
+                        <span aria-hidden="true">${AsciiSymbols.Plus}</span>
+                        <span>New session</span>
+                    </button>
                 </div>
-                <div class="group icons" aria-label="tools">
-                    <button id="settings" title="Global Settings">${AsciiSymbols.Settings}</button>
-                    <button id="editor" title="Code Editor Mode">${AsciiSymbols.BracketLeftMedium}${AsciiSymbols.BracketRightMedium}</button>
-                    <button id="sidebar" title="Toggle Tabs">${AsciiSymbols.Menu}</button>
+                <div class="inline-flex border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--background-2)]" aria-label="tools">
+                    <button id="settings" title="Global Settings" class="px-3 py-1.5 hover:bg-white/5 text-[16px] font-extrabold">${AsciiSymbols.Settings}</button>
+                    <button id="editor" title="Code Editor Mode" class="px-3 py-1.5 hover:bg-white/5 text-[16px] font-extrabold">${AsciiSymbols.BracketLeftMedium}${AsciiSymbols.BracketRightMedium}</button>
+                    <button id="sidebar" title="Toggle Tabs" class="px-3 py-1.5 hover:bg-white/5 text-[16px] font-extrabold">${AsciiSymbols.Menu}</button>
                 </div>
             </div>
         </nav>

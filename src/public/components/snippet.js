@@ -1,7 +1,7 @@
 export default function CdSnippet({ state, onMounted }) {
   const lang = (state.lang || 'text').toUpperCase()
   const style = `
-      :host { display:block; margin: 0 0 12px 0; }
+      :host { display: flex; flex-direction: column; }
       .wrap { border:1px solid var(--code-bord-color); background: var(--code-back-color); color: var(--code-text-color); border-radius:4px; }
       header { display:flex; align-items:center; justify-content:space-between; padding:6px 8px; font-family: Menlo, monospace; font-size:12px; border-bottom:1px solid #333; color:#bbb; }
       button { background: transparent; color:#ccc; border:1px solid #555; border-radius:3px; padding:2px 6px; cursor:pointer; font-family: Menlo, monospace; font-size:11px; }
@@ -16,13 +16,18 @@ export default function CdSnippet({ state, onMounted }) {
       .tok-flag { color: #8be9fd; }
       .tok-var { color: #50fa7b; }
       .tok-cmd { color: #8be9fd; }
-    `;
+    `
   onMounted((host) => {
     const codeEl = host.shadowRoot.getElementById('code')
     const copyBtn = host.shadowRoot.getElementById('copy')
     const getLang = () => (host.getAttribute('lang') || 'text').toLowerCase()
     const update = () => {
-      const codeText = (host.textContent || '').replace(/\n$/, '')
+      let codeText = (host.textContent || '').replace(/\n$/, '')
+      const bindKey = host.getAttribute('data-bind-text')
+      if (bindKey && window.__APP_STORE) {
+        const v = window.__APP_STORE.get(bindKey)
+        if (typeof v === 'string') codeText = v
+      }
       codeEl.innerHTML = highlight(codeText, getLang())
     }
     // Initial render; defer one microtask to allow external text setters first

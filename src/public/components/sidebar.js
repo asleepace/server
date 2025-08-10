@@ -11,7 +11,6 @@ export default function Sidebar({ state, onMounted, onMethod }) {
       :host {
         display: flex;
         flex-direction: column;
-        position: relative;
         overflow: hidden;
         box-sizing: border-box;
         width: ${initialWidth};
@@ -28,7 +27,7 @@ export default function Sidebar({ state, onMounted, onMethod }) {
       :host([hidden]) { display: none; }
 
       /* Theme variants (host attribute) */
-      :host([data-theme="dark"]) { background: #15171a; color: var(--text-color); }
+      :host([data-theme="dark"]) { background: #0f1113; color: var(--text-color); }
       :host([data-theme="light"]) { background: var(--surface); }
 
       .handle {
@@ -47,18 +46,13 @@ export default function Sidebar({ state, onMounted, onMethod }) {
 
       :host(:hover) .handle { background: transparent; }
 
-      .content { display:block; padding: 18px 32px 22px 32px; overflow:auto; max-height: 100%; }
+      .content { display: flex; flex-direction: column; overflow-y:auto; overflow-x:hidden; max-height: 100%; }
       .content * { box-sizing: border-box; max-width: 100%; }
-      .content > * + * { margin-top: 14px; }
-      .content h2 { margin-bottom: 12px; }
-      .content h3, .content h4 { margin-top: 16px; margin-bottom: 8px; }
-      .content p + .segmented { margin-top: 12px; }
 
       /* Local typography for sidebar content */
       .content h2 {
         font-family: var(--font-headings);
         font-size: 1.3rem;
-        margin: 0 0 10px 0;
         color: var(--text-color);
         letter-spacing: 0.2px;
       }
@@ -67,19 +61,19 @@ export default function Sidebar({ state, onMounted, onMethod }) {
         font-weight: 600;
         font-size: 0.9rem;
         color: var(--text-color);
-        margin: 12px 0 8px 0;
       }
       .content p {
         font-size: 0.85rem;
         color: var(--muted-text);
         line-height: 1.5;
-        margin: 6px 0;
       }
       .content small { font-size: 0.78rem; color: var(--muted-text); }
       .content code, .content pre { color: var(--code-text-color); }
     </style>
     <div class="handle" data-onpointerdown="@startResize" data-onmousedown="@startResize" data-ontouchstart="@startResize" data-ondblclick="@toggleTheme"></div>
-    <div class="content"><slot></slot></div>
+    <ul class="content">
+      <slot></slot>
+    </ul>
   `
 
   function applyWidth(pxOrCss) {

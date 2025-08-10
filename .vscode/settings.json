@@ -48,5 +48,32 @@
   "rust-analyzer.inlayHints.parameterHints.enable": false,
   "rust-analyzer.inlayHints.closureReturnTypeHints.enable": "never",
   "rust-analyzer.inlayHints.lifetimeElisionHints.enable": "never",
-  "rust-analyzer.inlayHints.discriminantHints.enable": "never"
+  "rust-analyzer.inlayHints.discriminantHints.enable": "never",
+  "javascript.format.enable": true,
+  "javascript.format.semicolons": "remove",
+  "editor.detectIndentation": false,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "[html]": {
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[javascript]": {
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[css]": {
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[typescript]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "files.associations": {
+    "*.wc": "wc"
+  }
 }

@@ -1,61 +1,292 @@
 use core::cli;
 use core::cli::args;
+use core::http::http_headers::HttpMethod;
+use core::http::HttpRequest;
 use core::server::Server;
+use core::util::Rand;
+use core::ServerEvent;
 use core::Stdout;
-use std::future::Future;
-use std::io::Error;
-use std::net::UdpSocket;
-use std::task::Poll;
+use std::io::{Error, Result};
+use std::path::Path;
 use std::thread;
+use std::time::{Duration, SystemTime};
 
 mod core;
 
-fn main() {
-    // Process command line arguments.
-    let argv = cli::process_args();
+fn main() -> Result<()> {
+    // MARK: Server
 
-    // Check if the user has specified a port.
-    let port = match args::parse_as_num(&argv, "--port") {
-        Some(port) => port as u16,
-        None => 8080,
-    };
+    let mut server = Server::instance()?;
 
-    // Check if the user has specified a host.
-    let host = match args::parse_as_str(&argv, "--host") {
-        Some(host) => host,
-        None => "localhost".to_string(),
-    };
+    println!("[main] server started!");
 
-    // Start the server.
-    let mut server = match Server::bind(&host, port) {
-        Ok(server) => server,
-        Err(err) => {
-            eprintln!("[serveros] failed to start server: {}", err);
-            return;
+    // MARK: Middleware
+
+    server.middleware(|req, next| {
+        println!("{:?}: {}", req.headers.method, req.uri);
+        // handle before requests here...
+        let res = next(req);
+        // handle after requests here...
+        match res {
+            Ok(404) => {
+                let _ = req.send_404();
+                return Ok(404);
+            }
+            Ok(401) => Ok(401),
+            _ => res,
         }
-    };
+    });
 
-    // Define routes.
+    // Example Auth middleware
+    server.middleware(|req, next| {
+        if req.uri == "/auth" {
+            return Ok(401);
+        }
+        next(req)
+    });
+
+    // Example post-processing
+    server.middleware(|req, next| {
+        let res = next(req);
+        // handle after requests here...
+        res
+    });
+
+    // MARK: Routes
+
+    // Static routes
     server.route("/", |sr| {
         println!("[main] serving route: /");
-        sr.send_file("index.html")
+        match sr.send_file("index.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
     });
 
     server.route("/log", |sr| {
-        println!("[main] serving route: events.html");
-        sr.send_file("log.html")
+        println!("[main] serving route: /log");
+        match sr.send_file("log.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    // Create a new session route: GET /session/new -> 302 redirect to /s/{id}
+    server.route("/session/new", |sr| {
+        let mut rnd = Rand::new();
+        let id = {
+            const ALPHANUM: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            let mut s = String::new();
+            for _ in 0..6 {
+                let n = (rnd.generate_u64() % (ALPHANUM.len() as u64)) as usize;
+                s.push(ALPHANUM[n] as char);
+            }
+            s
+        };
+        let html = format!("<html><head><meta http-equiv=\"refresh\" content=\"0; url=/s/{}\"/></head><body>redirecting...</body></html>", id);
+        match sr.send_text(core::http::HttpStatus::OK, "text/html; charset=utf-8", &html) {
+            Ok(_) => Ok(200),
+            Err(e) => Err(e),
+        }
+    });
+
+    // Session page and POST ingest: GET /s/[id] -> html; POST /s/[id] -> broadcast body
+    server.route("/s/[id]", |sr| {
+        match sr.headers.method {
+            HttpMethod::GET => match sr.send_file("session.html") {
+                Ok(_) => Ok(200),
+                Err(e) => Err(e),
+            },
+            HttpMethod::POST => {
+                // Use parsed body captured during header parsing; avoids mixing buffered/stream reads
+                let data = sr.body_string_lossy();
+
+                // emit to the specific session if id exists
+                if let Some(id) = sr.param("id") {
+                    crate::core::http::http_connections::send_event_to_session_global(
+                        id,
+                        ServerEvent::event("base64", data),
+                    );
+                }
+
+                match sr.send_text(
+                    core::http::HttpStatus::OK,
+                    "text/plain; charset=utf-8",
+                    "ok",
+                ) {
+                    Ok(_) => Ok(200),
+                    Err(e) => Err(e),
+                }
+            }
+            _ => match sr.send_text(
+                core::http::HttpStatus::BadRequest,
+                "text/plain",
+                "bad request",
+            ) {
+                Ok(_) => Ok(400),
+                Err(e) => Err(e),
+            },
+        }
     });
 
     // special endpoint for event-streams
     server.route("/events", |sr| {
-        println!("[main] serving route: events.html");
-        sr.event_souce()
+        println!("[main] serving route: /events");
+        match sr.event_source() {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    // Dev: trigger hot reload via POST /__reload (optional session scope: ?s=id)
+    server.route("/__reload", |sr| match sr.headers.method {
+        HttpMethod::POST => {
+            if let Some(sid) = sr.query_param("s") {
+                crate::core::http::http_connections::send_event_to_session_global(
+                    sid,
+                    ServerEvent::event("hot-reload", "1".to_string()),
+                );
+            } else {
+                crate::core::http::http_connections::broadcast_event_to_all_sessions(
+                    ServerEvent::event("hot-reload", "1".to_string()),
+                );
+            }
+            sr.send_text(core::http::HttpStatus::OK, "text/plain", "ok")
+                .map(|_| 200)
+        }
+        _ => sr
+            .send_text(
+                core::http::HttpStatus::BadRequest,
+                "text/plain",
+                "bad request",
+            )
+            .map(|_| 400),
+    });
+
+    // Dev: generic client command endpoint: POST /__client body => event: client-cmd
+    server.route("/__client", |sr| match sr.headers.method {
+        HttpMethod::POST => {
+            let data = sr.body_string_lossy();
+            if data.trim() == "@client:reload" {
+                crate::core::http::http_connections::broadcast_event_to_all_sessions(
+                    ServerEvent::event("hot-reload", "1".to_string()),
+                );
+            } else {
+                let ev = ServerEvent::event("client-cmd", data);
+                crate::core::http::http_connections::broadcast_event_to_all_sessions(ev);
+            }
+            sr.send_text(core::http::HttpStatus::OK, "text/plain", "ok")
+                .map(|_| 200)
+        }
+        _ => sr
+            .send_text(
+                core::http::HttpStatus::BadRequest,
+                "text/plain",
+                "bad request",
+            )
+            .map(|_| 400),
     });
 
     server.route("/info", |sr| {
-        println!("[main] serving route: info.html");
-        sr.send_file("info.html")
+        println!("[main] serving route: /info");
+        match sr.send_file("info.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
     });
 
+    // Dynamic routes with parameters
+    server.route("/users/[userId]", |sr| {
+        println!("[main] serving dynamic route: /users/[userId]");
+        if let Some(user_id) = sr.param("userId") {
+            println!("userId = {}", user_id);
+        }
+        match sr.send_file("user.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    server.route("/posts/[postId]", |sr| {
+        println!("[main] serving dynamic route: /posts/[postId]");
+        if let Some(id) = sr.param("postId") {
+            println!("postId = {}", id);
+        }
+        match sr.send_file("post.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    server.route("/posts/[postId]/comments/[commentId]", |sr| {
+        println!("[main] serving dynamic route: /posts/[postId]/comments/[commentId]");
+        if let Some(pid) = sr.param("postId") {
+            println!("postId = {}", pid);
+        }
+        if let Some(cid) = sr.param("commentId") {
+            println!("commentId = {}", cid);
+        }
+        match sr.send_file("comment.html") {
+            Ok(_) => Ok(200),
+            Err(err) => Err(err),
+        }
+    });
+
+    // Dev file watcher: broadcast hot-reload when files under public dir change
+    if std::env::var("DEV_WATCH").ok().as_deref() != Some("0") {
+        let public_dir = std::env::var("PUBLIC_DIR").unwrap_or_else(|_| "./src/public".to_string());
+        thread::spawn(move || {
+            fn latest_mtime(path: &Path) -> SystemTime {
+                let mut newest = SystemTime::UNIX_EPOCH;
+                if let Ok(meta) = std::fs::metadata(path) {
+                    if let Ok(mt) = meta.modified() {
+                        if mt > newest {
+                            newest = mt
+                        }
+                    }
+                }
+                if let Ok(read_dir) = std::fs::read_dir(path) {
+                    for entry in read_dir.flatten() {
+                        let p = entry.path();
+                        // Skip dot-directories
+                        if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
+                            if name.starts_with('.') {
+                                continue;
+                            }
+                        }
+                        if p.is_dir() {
+                            let mt = latest_mtime(&p);
+                            if mt > newest {
+                                newest = mt
+                            }
+                        } else if let Ok(meta) = std::fs::metadata(&p) {
+                            if let Ok(mt) = meta.modified() {
+                                if mt > newest {
+                                    newest = mt
+                                }
+                            }
+                        }
+                    }
+                }
+                newest
+            }
+
+            let root = Path::new(&public_dir);
+            let mut last = latest_mtime(root);
+            loop {
+                thread::sleep(Duration::from_millis(500));
+                let cur = latest_mtime(root);
+                if cur > last {
+                    last = cur;
+                    println!("[dev-watch] change detected, broadcasting hot-reload");
+                    crate::core::http::http_connections::broadcast_event_to_all_sessions(
+                        ServerEvent::event("hot-reload", "1".to_string()),
+                    );
+                }
+            }
+        });
+    }
+
     server.start();
+    Ok(())
 }

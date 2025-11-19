@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <title>ConsoleDump</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.png" />
+  <link rel="stylesheet" type="text/css" href="/index.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Live server event stream to view requests, errors and more!" />
+  <meta name="keywords" content="server, rust, web, http, routes" />
+  <meta name="author" content="Colin Teahan" />
+  <meta name="robots" content="index, follow" />
+  <meta name="revisit-after" content="7 days" />
+  <meta name="language" content="English" />
+  <meta name="generator" content="ServerOS" />
+  <meta name="distribution" content="global" />
+  <meta name="rating" content="general" />
+  <meta name="theme-color" content="#1d1d1d" />
+  <style>
+    section ul {
+      list-style: none;
+    }
+
+    .segmented-control {
+      @apply inline-flex border rounded-lg overflow-hidden;
+      border-color: var(--border);
+      background-color: var(--background-2);
+    }
+
+    .segmented-control>* {
+      @apply text-lg px-4 py-1 border-l;
+      border-left-color: var(--border);
+    }
+
+    .segmented-control>*:first-child {
+      @apply border-l-0;
+    }
+
+    .segmented-control>*:hover {
+      outline: 1px solid var(--code-green-color);
+      background-color: color-mix(in srgb, var(--code-green-color) 25%, transparent);
+    }
+
+    @keyframes cursor-blink {
+
+      0%,
+      50% {
+        opacity: 1;
+      }
+
+      51%,
+      100% {
+        opacity: 0;
+      }
+    }
+
+    .cursor-blink {
+      animation: cursor-blink 1s infinite;
+    }
+
+    nav button {
+      @apply px-4 py-1.5
+    }
+  </style>
+</head>
+
+<body data-page="session">
+  <div class="flex flex-col min-h-screen">
+    <main id="layout" class="flex w-screen min-h-screen overflow-hidden" style="--sidebar: 420px;">
+      <section id="left-pane" class="flex flex-col flex-1 min-w-0">
+        <!-- site navigation -->
+        <nav
+          class="w-full h-[var(--nav-height)] flex items-center justify-between px-3 border-b border-[var(--border)] bg-[var(--surface)] shadow-[0_2px_6px_var(--shadow)] box-border">
+          <div class="font-extrabold tracking-[0.2px] text-[var(--text-color)] flex items-center gap-2">
+            ConsoleDump
+            <div id="cursor" class="bg-[var(--code-green-color)] w-1.5 h-6 cursor-blink"></div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="inline-flex border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--background-2)]">
+              <button
+                class="px-3 py-1.5 text-[var(--text-color)] font-[var(--font-ui)] hover:bg-white/5 flex items-center gap-2"
+                data-action="nav:/session/new">
+                <span class="material-icon" aria-hidden="true">add</span>
+                <span>New session</span>
+              </button>
+            </div>
+            <div
+              class="inline-flex border border-[var(--border)] *:hover:bg-[var(--code-green-color)]/25 *:hover:outline-1 *:hover:outline-[var(--code-green-color)] *:text-lg *:px-4 *:py-1 *:border-l-1 *:border-l-[var(--border)] *:first:border-none rounded-lg overflow-hidden bg-[var(--background-2)]"
+              aria-label="tools">
+              <button title="Global Settings" data-action="dispatch:cd:open-settings"><span
+                  class="material-icon">settings</span></button>
+              <button title="Code Editor Mode" data-action="dispatch:cd:toggle-editor"><span
+                  class="material-icon">code</span></button>
+              <button title="Toggle Tabs" data-action="dispatch:cd:toggle-sidebar"><span
+                  class="material-icon">menu</span></button>
+            </div>
+          </div>
+        </nav>
+        <!-- console output & input -->
+        <pre id="event-container" role="log" aria-live="polite"
+          class="flex-1 min-w-0 m-0 p-4 pr-1 pb-1 overflow-y-auto overflow-x-hidden bg-transparent">
+          <code id="event-stream" class="text-[14px] leading-6 font-mono text-white/80 m-0 p-0 whitespace-pre-wrap"></code>
+        </pre>
+        <div id="cli" class="flex p-2 border-t border-[var(--border)] bg-[var(--surface)]">
+          <input id="cli-input" type="text" placeholder=":"
+            class="w-full font-mono text-[14px] p-2 border rounded-lg border-[var(--border)] bg-[var(--code-back-color)] text-[var(--code-text-color)]" />
+        </div>
+      </section>
+      <!-- settings sidebar panel -->
+      <cd-sidebar id="sidebar" data-theme="light" width="var(--sidebar)" min="280" max="65vw">
+        <app-text variant="h2" text="Data Stream"></app-text>
+        <app-segmented items="instructions,settings,hooks" data-bind-value="activeTab"></app-segmented>
+        <div class="mt-3">
+          <section data-bind-eq="activeTab:instructions">
+            <app-text variant="p"
+              text="ConsoleDump helps you rapidly debug in low-visibility or remote environments by streaming POSTed data directly into a shareable live session."></app-text>
+            <app-text variant="p" text="Share this session link to collaborate quickly:"></app-text>
+            <ul class="space-y-3">
+              <li>
+                <app-text variant="h4" text="Quick start"></app-text>
+                <app-text variant="p"
+                  text="Send any HTTP POST to this session. Payload will be forwarded to the stream."></app-text>
+                <app-snippet lang="text" header="TEXT" data-bind-text="linkSnippet"></app-snippet>
+              </li>
+              <li>
+                <app-text variant="h4" text="Bash (curl)"></app-text>
+                <app-snippet lang="bash" header="BASH" data-bind-text="curlSnippet"></app-snippet>
+              </li>
+              <li>
+                <app-text variant="h4" text="JavaScript (fetch)"></app-text>
+                <app-snippet lang="js" header="JS" data-bind-text="jsSnippet"></app-snippet>
+              </li>
+              <li>
+                <app-text variant="h4" text="Python (requests)"></app-text>
+                <app-snippet lang="py" header="PY" data-bind-text="pySnippet"></app-snippet>
+              </li>
+            </ul>
+            <app-text variant="small" muted>Tip: Large payloads supported. For now, base64 event emitted as
+              <code>base64</code> SSE. Client decodes automatically in this view.</app-text>
+          </section>
+          <section data-bind-eq="activeTab:settings" class="hidden">
+            <app-text variant="p" text="Theme, font size, auto-scroll, and retention controls can go here."></app-text>
+          </section>
+          <section data-bind-eq="activeTab:hooks" class="hidden">
+            <app-text variant="p" muted>Hooks run on the client to transform incoming messages. Each hook defines
+              <code>transform(ctx, text)</code> and runs sequentially when enabled.</app-text>
+            <cd-hooks></cd-hooks>
+          </section>
+        </div>
+      </cd-sidebar>
+    </main>
+  </div>
+  <script type="module" src="/client.js"></script>
+</body>
+
+</html>

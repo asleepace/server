@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "WC",
+  "scopeName": "source.wc",
+  "patterns": [
+    { "include": "#directives" },
+    { "include": "#style" },
+    { "include": "#template" },
+    { "include": "#script" }
+  ],
+  "repository": {
+    "directives": {
+      "patterns": [
+        {
+          "name": "keyword.control.wc",
+          "match": "^(?:[\\t ]*)@(component|prop|import|method|style|template|script|end)\\b.*$"
+        },
+        {
+          "name": "entity.name.type.wc",
+          "match": "^(?:[\\t ]*)@component\\s+[A-Za-z_][\\w-]*"
+        },
+        {
+          "name": "meta.definition.property.wc",
+          "match": "^(?:[\\t ]*)@prop\\s*(?:\\(([^)]*)\\))?\\s+([A-Za-z_][\\w-]*)\\s*:\\s*([A-Za-z_][\\w]*)\\s*(=\\s*[^\\n]+)?",
+          "captures": {
+            "1": { "name": "storage.modifier.wc" },
+            "2": { "name": "variable.parameter.wc" },
+            "3": { "name": "storage.type.wc" },
+            "4": { "name": "constant.other.wc" }
+          }
+        }
+      ]
+    },
+    "style": {
+      "begin": "^(?:[\\t ]*)@style\\b.*$",
+      "beginCaptures": { "0": { "name": "keyword.control.wc" } },
+      "end": "^(?:[\\t ]*)@end\\b",
+      "endCaptures": { "0": { "name": "keyword.control.wc" } },
+      "contentName": "meta.embedded.block.css",
+      "patterns": [ { "include": "source.css" } ]
+    },
+    "template": {
+      "begin": "^(?:[\\t ]*)@template(?:[\\t ]*\\(html\\))?\\b.*$",
+      "beginCaptures": { "0": { "name": "keyword.control.wc" } },
+      "end": "^(?:[\\t ]*)@end\\b",
+      "endCaptures": { "0": { "name": "keyword.control.wc" } },
+      "contentName": "meta.embedded.block.html",
+      "patterns": [
+        { "name": "variable.interpolation.wc", "match": "\\{\\{[^}]+\\}\\}" },
+        { "name": "keyword.operator.wc", "match": "on:[A-Za-z]+" },
+        { "include": "text.html.basic" }
+      ]
+    },
+    "script": {
+      "begin": "^(?:[\\t ]*)@script\\b.*$|^(?:[\\t ]*)@method[\\t ]+[A-Za-z_][\\w]*[\\t ]*:[\\t ]*\\(\\)[\\t ]*=>\\b.*$",
+      "beginCaptures": { "0": { "name": "keyword.control.wc" } },
+      "end": "^(?:[\\t ]*)@end\\b|(?=\\n[\\t ]*@method|\\n[\\t ]*@style|\\n[\\t ]*@template|\\n[\\t ]*@component|\\n[\\t ]*@prop)",
+      "contentName": "meta.embedded.block.js",
+      "patterns": [ { "include": "source.js" } ]
+    }
+  }
+}
+

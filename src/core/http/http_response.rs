@@ -1,12 +1,19 @@
 use crate::core::http::http_headers::HttpHeaders;
+use crate::core::security::{sanitize_path, validate_path_bounds};
 use crate::core::util::get_mime_type;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::io::Error;
 use std::io::{BufRead, BufReader};
 use std::io::{BufWriter, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::http_headers::HttpVersion;
 use super::HttpStatus;
@@ -64,13 +71,141 @@ impl HttpResponse {
         Ok(response)
     }
 
+    /// Securely resolves a file path with fallback logic:
+    /// 1. Try {path}.html if path doesn't end with .html
+    /// 2. Try {path}/index.html if primary fails
+    /// 3. Return 404.html if both fail
+    /// Includes comprehensive security validation to prevent path traversal attacks.
+    pub fn resolve_file_path(url: &str) -> Result<(PathBuf, String), Error> {
+        // Strip query string if present
+        let url = match url.find('?') {
+            Some(idx) => &url[..idx],
+            None => url,
+        };
+        // Security: Sanitize the input path
+        let clean_path = match sanitize_path(url) {
+            Ok(path) => path,
+            Err(_security_err) => {
+                eprintln!("[security] Blocked request for: {}", url);
+                return Self::get_404_fallback();
+            }
+        };
+
+        // Tiny URL → (PathBuf, mime) cache with short TTL
+        static CACHE: OnceLock<Mutex<HashMap<String, (PathBuf, String, Instant)>>> =
+            OnceLock::new();
+        let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        {
+            if let Ok(mut m) = cache.lock() {
+                if let Some((p, mime, ts)) = m.get(&clean_path).cloned() {
+                    if ts.elapsed().as_secs() < 5 {
+                        return Ok((p, mime));
+                    } else {
+                        m.remove(&clean_path);
+                    }
+                }
+            }
+        }
+
+        let public_dir = Self::public_base();
+        let base_dir = Path::new(&public_dir);
+
+        // Handle root path
+        if clean_path.is_empty() {
+            let index_path = base_dir.join("index.html");
+            if let Err(_security_err) = validate_path_bounds(&index_path, base_dir) {
+                eprintln!("[security] Path bounds violation for root path");
+                return Self::get_404_fallback();
+            }
+            return Ok((index_path, get_mime_type("index.html")));
+        }
+
+        // Try different resolution strategies in order
+        let candidates = Self::generate_path_candidates(&clean_path);
+
+        for candidate in candidates {
+            let full_path = base_dir.join(&candidate);
+
+            // Security: Validate path bounds
+            if let Err(_) = validate_path_bounds(&full_path, base_dir) {
+                continue; // Skip this candidate, try next
+            }
+
+            // Check if file exists
+            if full_path.exists() && full_path.is_file() {
+                println!("[http_request] resolved: {:?}", full_path);
+                let mime = get_mime_type(&candidate);
+                if let Ok(mut m) = cache.lock() {
+                    m.insert(
+                        clean_path.clone(),
+                        (full_path.clone(), mime.clone(), Instant::now()),
+                    );
+                }
+                return Ok((full_path, mime));
+            }
+        }
+
+        // All candidates failed, return 404.html
+        Self::get_404_fallback()
+    }
+
+    /// Generates candidate paths to try for file resolution
+    fn generate_path_candidates(clean_path: &str) -> Vec<String> {
+        let mut candidates = Vec::new();
+
+        // Strategy 1: Try exact path first
+        candidates.push(clean_path.to_string());
+
+        // Strategy 2: If path doesn't end with .html, try adding .html
+        if !clean_path.ends_with(".html") && !clean_path.contains('.') {
+            candidates.push(format!("{}.html", clean_path));
+        }
+
+        // Strategy 3: Try as directory with index.html
+        candidates.push(format!("{}/index.html", clean_path));
+
+        candidates
+    }
+
+    /// Returns 404.html as fallback, or creates a basic 404 response if 404.html doesn't exist
+    fn get_404_fallback() -> Result<(PathBuf, String), Error> {
+        let base = Self::public_base();
+        let combined = format!("{}/404.html", base);
+        let fallback_path = Path::new(&combined);
+        if fallback_path.exists() {
+            Ok((fallback_path.to_path_buf(), get_mime_type("404.html")))
+        } else {
+            // Create a basic 404 response if 404.html doesn't exist
+            Err(Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found and no 404.html available",
+            ))
+        }
+    }
+
+    /// Determine public base dir:
+    /// - use env PUBLIC_DIR if set
+    /// - default to ./src/public for debug builds and ./public for release
+    fn public_base() -> String {
+        if let Ok(dir) = env::var("PUBLIC_DIR") {
+            if !dir.is_empty() {
+                return dir;
+            }
+        }
+        #[cfg(debug_assertions)]
+        {
+            "./src/public".to_string()
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            "./public".to_string()
+        }
+    }
+
     pub fn get_file(url: &str) -> Result<(Vec<u8>, String), Error> {
-        let path = url.trim_matches('/');
-        let file_path = format!("./src/public/{}", path);
-        println!("[http_request] fetch {:?}", file_path);
-        let data = fs::read(file_path)?;
-        let mime = get_mime_type(url);
-        Ok((data, mime))
+        let (file_path, mime_type) = Self::resolve_file_path(url)?;
+        let data = fs::read(&file_path)?;
+        Ok((data, mime_type))
     }
 
     pub fn set_body(&mut self, body: Vec<u8>, mime: &str) {
@@ -131,11 +266,53 @@ impl HttpResponse {
         let code = self.status.code();
         let message = self.status.message();
         let mut http_response_headers = format!("{} {} {}\r\n", version, code, message);
+        // default headers if not set
+        if self.headers.raw.get("Date").is_none() {
+            http_response_headers.push_str(&format!("Date: {}\r\n", Self::http_date()));
+        }
+        if self.headers.raw.get("Server").is_none() {
+            http_response_headers.push_str("Server: serveros/0.1\r\n");
+        }
+        if self.headers.raw.get("Connection").is_none() {
+            http_response_headers.push_str("Connection: keep-alive\r\n");
+        }
         for (key, value) in self.headers.raw.borrow() {
             http_response_headers.push_str(&format!("{}: {}\r\n", key, value));
         }
         http_response_headers.push_str("\r\n");
         http_response_headers
+    }
+
+    fn http_date() -> String {
+        // Very small RFC-1123-ish date for GMT without deps (approximate)
+        // Falls back to UNIX_EPOCH if needed
+        const WK: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const MO: [&str; 12] = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        // Approximation: not exact weekday; acceptable for header fallback
+        let days = now.as_secs() / 86_400;
+        let weekday = WK[(days % 7) as usize];
+        let year = 1970 + (days / 365) as u64; // rough
+        let month = (days % 365) / 30; // rough
+        let day = ((days % 365) % 30) + 1;
+        let secs = now.as_secs() % 86_400;
+        let hh = secs / 3600;
+        let mm = (secs % 3600) / 60;
+        let ss = secs % 60;
+        format!(
+            "{}, {:02} {} {:04} {:02}:{:02}:{:02} GMT",
+            weekday,
+            day,
+            MO[(month % 12) as usize],
+            year,
+            hh,
+            mm,
+            ss
+        )
     }
 
     /**
@@ -147,7 +324,6 @@ impl HttpResponse {
         let response_in_bytes = self.prepare();
         tcp_stream.write_all(&response_in_bytes)?;
         tcp_stream.flush()?;
-        tcp_stream.shutdown(Shutdown::Both)?;
         Ok(())
     }
 }

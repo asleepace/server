@@ -1,12 +1,76 @@
-:root {
-    /* general */
-    --background: #faeed1;
-    --text-color: rgba(0.19, 0.19, 0.19, 1);
-    --tint-color: #607274;
+@layer reset, tokens, base, layout, utilities, overrides;
+
+/* Default to dark theme */
+@layer tokens {
+  @font-face {
+    font-family: "MaterialSymbolsSharp";
+    src: url("/assets/Material_Symbols_Sharp/static/MaterialSymbolsSharp_36pt-Regular.ttf")
+      format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  :root,
+  [data-theme="dark"] {
+    /* brand & typography */
+    --font-ui: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+      "Apple Color Emoji", "Segoe UI Emoji";
+    --font-mono: Menlo, ui-monospace, SFMono-Regular, Consolas,
+      "Liberation Mono", monospace;
+    --font-headings: "Iowan Old Style", "Palatino Linotype", "URW Palladio L",
+      P052, serif;
+
+    /* dark tokens */
+    --background: #111214;
+    --background-2: #0b0c0e;
+    --surface: #15171a;
+    --text-color: #e6e6e6;
+    --muted-text: #aaaaaa;
+    --muted-text-darker: #999999;
+    --tint-color: #a0c3c4;
+    --tint-highlight: #c6edef;
+    --green-accent: #7efc7a;
+    --border: #3a3d42;
+    --shadow: rgba(0, 0, 0, 0.5);
+
     /* code blocks */
+    --code-back-color: #0e0f11;
+    --code-text-color: #f0f0f2;
+    --code-bord-color: #3a3d42;
+    --code-pink-color: #ff79c6; /* light pink */
+    --code-blue-color: #8be9fd; /* light blue */
+    --code-pale-color: #f1fa8c; /* light yellow */
+    --code-green-color: #7efc7a; /* pale green */
+
+    /* nav */
+    --nav-height: 48px;
+
+    /* scrollbars */
+    --scrollbar-size: 10px;
+    --scrollbar-thumb: #3a3d42;
+    --scrollbar-track: var(--surface);
+    --green-accent: #7efc7a;
+  }
+
+  /* Light theme override */
+  [data-theme="light"] {
+    --background: #faeed1; /* bisque */
+    --background-2: #f2e2b8; /* warmer shade */
+    --surface: #fff7e3; /* panels */
+    --text-color: #282828; /* rich black */
+    --muted-text: #555;
+    --tint-color: #607274; /* teal/green gray */
+    --tint-highlight: #405254;
+    --border: #c5b998;
+    --shadow: rgba(0, 0, 0, 0.25);
+
     --code-back-color: #1c1c1e;
     --code-text-color: #d7d7d8;
     --code-bord-color: #444444;
+
+    --scrollbar-thumb: var(--border);
+    --scrollbar-track: var(--surface);
+  }
 }
 
 /* Display-P3 color, when supported. */
@@ -20,8 +84,9 @@
     }
 } */
 
-html {
-    font-family: "Iowan Old Style", "Palatino Linotype", "URW Palladio L", P052;
+@layer base {
+  html {
+    font-family: var(--font-ui);
     background-color: var(--background);
     color: var(--text-color);
     font-size: 1.1rem;
@@ -31,9 +96,9 @@ html {
     display: flex;
     width: 100%;
     flex: 1;
-}
+  }
 
-body {
+  body {
     display: flex;
     color: var(--text-color);
     flex-direction: column;
@@ -44,165 +109,349 @@ body {
     width: 100%;
     margin: 0;
     flex: 1;
+    background-color: var(--background);
+  }
 }
 
-nav {
-    border-bottom: 1px solid hsl(0, 0%, 0%);
-    background-color: var(--background);
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 2rem;
-    margin: 0;
+/* Global transition safety: opt-out class to avoid HR/theme thrash */
+.no-transitions *,
+.no-transitions *::before,
+.no-transitions *::after {
+  transition: none !important;
+  animation: none !important;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Two-pane layout rules (session page) */
+@layer layout {
+  [data-page="session"] #layout {
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+  [data-page="session"] #event-container {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  [data-page="session"] #left-pane {
+    /* no extra top padding; navbar is sticky inside */
+  }
+  [data-page="session"] cd-nav {
+    height: var(--nav-height);
+    display: flex;
+  }
+}
+
+/* Global modern defaults */
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+}
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+:focus-visible {
+  outline: 2px dashed var(--tint-color);
+  outline-offset: 2px;
+}
+::selection {
+  background: var(--tint-color);
+  color: #fff;
+}
+
+[data-page="session"] #layout > aside {
+  width: 420px;
+  max-width: 45vw;
+  color: var(--text-color);
+  font-family: system-ui;
+  padding-left: 24px;
+  border-left: 1px solid var(--border);
+  overflow: auto;
+  background: var(--surface);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+
+[data-page="session"] #layout > aside * {
+  box-sizing: border-box;
+}
+
+/* Sidebar theme variants */
+[data-page="session"] #layout > aside[data-theme="dark"] {
+  background: #15171a;
+  color: var(--text-color);
+  border-left-color: #2b2f36;
+}
+[data-page="session"] #layout > aside[data-theme="light"] {
+  background: var(--surface);
+}
+
+/* Global nav removed from base pages; <cd-nav> provides its own styles */
 
 article {
-    font-size-adjust: 0.47;
-    margin-trim: block;
-    padding: 2rlh;
-    width: 640px;
+  font-size-adjust: 0.47;
+  margin-trim: block;
+  padding: 2rlh;
+  width: 640px;
 }
 
 h1 {
-    font-family: "Iowan Old Style", "Palatino Linotype", "URW Palladio L", P052,
-        serif;
-    color: var(--text-color);
-    line-height: 1.2;
-    font-size: 3rem;
+  font-family: var(--font-headings);
+  color: var(--text-color);
+  line-height: 1.2;
+  font-size: 3rem;
 }
 
 h2 {
-    font-family: "Iowan Old Style", "Palatino Linotype", "URW Palladio L", P052,
-        serif;
-    color: var(--code-back-color);
+  font-family: var(--font-headings);
+  color: var(--text-color);
 }
 
 h3 {
-    /* font-family:
-        San Francisco,
-        -apple-system,
-        BlinkMacSystemFont,
-        Roboto,
-        "Helvetica Neue",
-        sans-serif; */
-
-    font-size: 0.9rem;
-    font-weight: 700;
-    /* letter-spacing: -0.3px; */
-    padding: none;
-    margin: none;
+  font-family: var(--font-headings);
+  font-size: 0.9rem;
+  font-weight: 700;
+  /* letter-spacing: -0.3px; */
+  padding: 0;
+  margin: 0;
 }
 
 #site-logo {
-    color: var(--text-color);
-    text-decoration: none;
-    font-weight: 900;
+  color: var(--text-color);
+  text-decoration: none;
+  font-weight: 900;
 }
 
 h1,
 p {
-    color: var(--text-color);
-    margin-block: 1rlh;
+  color: var(--text-color);
+  margin-block: 1rlh;
 }
 
 p {
-    padding: 0 0.6rem;
-    line-height: 1.6;
-    font-size: 1.1em;
-    letter-spacing: -0.224px;
+  padding: 0 0.6rem;
+  line-height: 1.6;
+  font-size: 1.1em;
+  letter-spacing: -0.224px;
 }
 
 pre {
-    background-color: var(--code-back-color);
-    border-color: var(--code-bord-color);
-    color: var(--code-text-color);
-    border: 1px solid hsl(0, 0%, 90.6%);
-    border-radius: 4px;
-    margin-trim: block;
-    text-align: left;
-    padding: 0px 1.4rem;
+  background-color: var(--code-back-color);
+  border-color: var(--code-bord-color);
+  color: var(--code-text-color);
+  border: 1px solid var(--code-bord-color);
+  border-radius: 4px;
+  margin-trim: block;
+  text-align: left;
+  padding: 0px 1.4rem;
 }
 
 code {
-    font-family: Menlo, monospace;
-    border-radius: 2px;
-    font-size: 0.9rem;
+  font-family: var(--font-mono);
+  border-radius: 2px;
+  font-size: 0.9rem;
 }
 
 a {
-    line-height: 24px;
-    color: var(--tint-color);
-    /* text-decoration: none; */
+  line-height: 24px;
+  color: var(--tint-color);
+  /* text-decoration: none; */
 }
 
 a:hover {
-    color: var(--tint-highlight);
-    text-decoration: underline;
+  color: var(--tint-highlight);
+  text-decoration: underline;
 }
 
 ul {
-    margin: 2rem 0;
+  margin: 2rem 0;
 }
 
 li {
-    padding-left: 0.6rem;
-    margin: 0.6rem 0;
+  padding-left: 0.6rem;
+  margin: 0.6rem 0;
 }
 
 /* shared css effects */
 .shadow {
-    box-shadow: 0px 4px 8px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0px 4px 8px 4px var(--shadow);
+}
+
+/* panels */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px var(--shadow);
+}
+
+/* segmented control */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.segmented button {
+  border: none;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--text-color);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--background-2);
+}
+
+/* ascii styling */
+.ascii {
+  font-family: var(--font-mono);
+  color: #7efc7a;
+}
+
+/* Shared buttons (outside web components) */
+.btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--green-accent);
+  font-family: var(--font-mono);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+/* Material icon helper */
+.material-icon {
+  font-family: "MaterialSymbolsSharp";
+  font-weight: 400;
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "liga";
+}
+.btn:hover {
+  background: var(--background-2);
+}
+.btn-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.btn-group > * {
+  border: none;
+  border-right: 1px solid var(--border);
+}
+.btn-group > *:last-child {
+  border-right: none;
+}
+
+/* Scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+aside::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+pre::-webkit-scrollbar-track {
+  background: var(--code-back-color);
 }
 
 /* horizontal flex rows */
 .row,
 .row-button-list {
-    justify-content: space-between;
-    align-items: center;
-    flex-direction: row;
-    display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row;
+  display: flex;
 }
 
 .row-button-list {
-    text-decoration: none;
-    column-gap: 1em;
-    row-gap: 1rem;
+  text-decoration: none;
+  column-gap: 1em;
+  row-gap: 1rem;
 }
 
 .row-button-list a {
-    display: flex;
-    flex: 1;
-    align-self: stretch;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 1.8rem;
-    letter-spacing: 0.3px;
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.8rem;
+  letter-spacing: 0.3px;
 }
 
 .row-button-list button {
-    min-height: 2rem;
-    border-radius: 2px;
-    border-width: 1px;
-    border-color: transparent;
-    background-color: var(--code-back-color);
-    color: var(--code-text-color);
-    justify-content: center;
-    align-items: center;
-    align-self: stretch;
-    display: flex;
-    flex: 1;
-    font-size: 16px;
-    letter-spacing: 0.3px;
+  min-height: 2rem;
+  border-radius: 2px;
+  border-width: 1px;
+  border-color: transparent;
+  background-color: var(--code-back-color);
+  color: var(--code-text-color);
+  justify-content: center;
+  align-items: center;
+  align-self: stretch;
+  display: flex;
+  flex: 1;
+  font-size: 16px;
+  letter-spacing: 0.3px;
 }
 
 .row-button-list button:hover {
-    text-underline-offset: 0.2em;
-    text-decoration: underline;
-    background-color: var(--background);
-    border-color: var(--text-color);
-    color: var(--text-color);
+  text-underline-offset: 0.2em;
+  text-decoration: underline;
+  background-color: var(--background);
+  border-color: var(--text-color);
+  color: var(--text-color);
 }

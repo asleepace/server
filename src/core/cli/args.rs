@@ -115,3 +115,23 @@ pub fn is_set(args: &HashMap<String, Args>, token: &str) -> bool {
         _ => false,
     }
 }
+
+// Convenience: parse caps with defaults and floor/ceil bounds
+pub fn parse_with_bounds(
+    args: &HashMap<String, Args>,
+    token: &str,
+    default: usize,
+    min: usize,
+    max: usize,
+) -> usize {
+    match args.get(token) {
+        Some(Args::Number(v)) if *v > 0 => (*v as usize).clamp(min, max),
+        Some(Args::Decimal(f)) if *f > 0.0 => (*f as usize).clamp(min, max),
+        Some(Args::Text(t)) => t
+            .parse::<usize>()
+            .ok()
+            .map(|n| n.clamp(min, max))
+            .unwrap_or(default),
+        _ => default,
+    }
+}

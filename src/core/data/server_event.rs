@@ -30,6 +30,15 @@ impl ServerEvent {
         }
     }
 
+    pub fn close() -> Self {
+        ServerEvent {
+            data: "close".to_string(),
+            event: Some("close".to_string()),
+            id: None,
+            retry: None,
+        }
+    }
+
     /**
      * Create a new ServerEvent with an event and data, the data will be base64 encoded.
      * when creating a new instance.

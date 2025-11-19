@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Client Tests</title>
+    <link rel="stylesheet" href="/index.css" />
+    <style>
+        body {
+            padding: 12px;
+        }
+
+        .pass {
+            color: #2ecc71
+        }
+
+        .fail {
+            color: #e74c3c
+        }
+
+        pre {
+            margin-top: 8px
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Client Tests</h1>
+    <div id="results"></div>
+    <pre style="height:200px;overflow:auto"><code id="event-stream"></code></pre>
+    <script type="module">
+        import { isNearBottom, parseEvent, watchEvents } from '/scripts/events.js'
+
+        const results = document.getElementById('results')
+        const log = (name, ok, detail = '') => {
+            const el = document.createElement('div')
+            el.className = ok ? 'pass' : 'fail'
+            el.textContent = `${ok ? '✓' : '✗'} ${name}${detail ? ' — ' + detail : ''}`
+            results.appendChild(el)
+        }
+
+        // Mock container to test isNearBottom
+        const container = document.createElement('div')
+        Object.defineProperties(container, {
+            scrollHeight: { value: 1000, writable: true },
+            clientHeight: { value: 500, writable: true },
+            scrollTop: { value: 450, writable: true }
+        })
+        log('isNearBottom true', isNearBottom(container, 60) === true)
+        container.scrollTop = 400
+        log('isNearBottom false', isNearBottom(container, 60) === false)
+
+        // parseEvent tests
+        const e1 = { data: 'hello,world', event: 'msg' }
+        log('parseEvent replaces commas', parseEvent(e1) === 'msg: hello world')
+        const e2 = { data: '  data  ' }
+        log('parseEvent trims', parseEvent(e2) === 'message: data')
+
+        // watchEvents tests with mocked EventSource
+        class MockEventSource {
+            constructor(url) { this.url = url; this.readyState = 1; window.__lastES = this; this._listeners = {}; }
+            addEventListener(type, handler) { this._listeners[type] = handler }
+            close() { this.readyState = 2 }
+        }
+        Object.defineProperty(window, 'EventSource', { value: MockEventSource })
+
+        const unsubscribe = watchEvents({ eventSource: '/mock', targetElement: 'event-stream', onErrorDisconnect: false, maxLines: 10 })
+        const es = window.__lastES
+        // Simulate open
+        es.onopen && es.onopen({})
+        // Simulate message
+        es.onmessage && es.onmessage({ data: 'hello,world', event: 'msg' })
+        // Simulate base64
+        es._listeners['base64'] && es._listeners['base64']({ data: btoa('hi') })
+        // Simulate hot reload without actually reloading
+        const originalReload = location.reload
+        let reloadCalled = false
+        Object.defineProperty(location, 'reload', { value: () => { reloadCalled = true } })
+        es._listeners['hot-reload'] && es._listeners['hot-reload']({})
+        // Validate DOM
+        const stream = document.getElementById('event-stream')
+        log('watchEvents appended children', stream.childNodes.length >= 2, `count=${stream.childNodes.length}`)
+        log('hot-reload triggered', reloadCalled === true)
+        // restore
+        Object.defineProperty(location, 'reload', { value: originalReload })
+        unsubscribe()
+    </script>
+</body>
+
+</html>

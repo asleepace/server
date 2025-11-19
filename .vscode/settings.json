@@ -1,0 +1,79 @@
+{
+  "editor.formatOnSave": true,
+  "editor.inlayHints.enabled": "off",
+  "editor.semanticHighlighting.enabled": false,
+  "editor.occurrencesHighlight": "off",
+  "editor.selectionHighlight": false,
+  "editor.renderValidationDecorations": "editable",
+  "problems.showCurrentInStatus": false,
+  "editor.lightbulb.enabled": "off",
+  "workbench.colorCustomizations": {
+    "editorWarning.foreground": "#00000000",
+    "editorInfo.foreground": "#00000000"
+  },
+  "files.watcherExclude": {
+    "**/target/**": true
+  },
+  "search.exclude": {
+    "**/target/**": true
+  },
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.fixAll": "explicit"
+  },
+  "rust-analyzer.cargo.allFeatures": true,
+  "rust-analyzer.cargo.targetDir": "target",
+  "rust-analyzer.cargo.buildScripts.enable": true,
+  "rust-analyzer.procMacro.enable": true,
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": [
+    "--all-targets",
+    "--all-features",
+    "--",
+    "-W",
+    "clippy::all",
+    "-W",
+    "clippy::pedantic",
+    "-A",
+    "clippy::module_name_repetitions",
+    "-A",
+    "clippy::missing_errors_doc",
+    "-A",
+    "clippy::missing_panics_doc"
+  ],
+  "rust-analyzer.inlayHints.typeHints.enable": false,
+  "rust-analyzer.inlayHints.parameterHints.enable": false,
+  "rust-analyzer.inlayHints.closureReturnTypeHints.enable": "never",
+  "rust-analyzer.inlayHints.lifetimeElisionHints.enable": "never",
+  "rust-analyzer.inlayHints.discriminantHints.enable": "never",
+  "javascript.format.enable": true,
+  "javascript.format.semicolons": "remove",
+  "editor.detectIndentation": false,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "[html]": {
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[javascript]": {
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[css]": {
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "[typescript]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "files.associations": {
+    "*.wc": "wc"
+  }
+}
